@@ -1,8 +1,5 @@
-import enum
 import os
-from typing import Tuple
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
-from cryptography.hazmat.primitives import hashes
 
 from Encryption.Symetric import Secret
 
@@ -23,8 +20,7 @@ def __decrypt_shared_key_half(private_key: rsa.RSAPrivateKey, encrypted_half) ->
     )
 
 
-# channel is an established connection that messages
-# can be received and sent through
+# channel is an established connection that messages can be received and sent through
 def start_diffie_helmen(
     private_key: rsa.RSAPrivateKey, peer_public_key: rsa.RSAPublicKey, channel
 ) -> Secret:
