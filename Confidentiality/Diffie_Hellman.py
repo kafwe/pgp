@@ -1,7 +1,7 @@
 import os
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 
-from Encryption.Symetric import Secret
+from Confidentiality.Symetric import Secret
 
 
 def __gen_half_key() -> bytes:
