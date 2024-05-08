@@ -12,11 +12,9 @@ class Secret:
     encryptor: CipherContext
     decryptor: CipherContext
 
-    # Bob is user establishing connection
-    # Alice is user receiving connection
     # Halves must already be decrypted
-    def __init__(self, bob_half: bytes, alice_half: bytes) -> None:
-        key = bob_half + alice_half
+    def __init__(self, starter_half: bytes, receiver_half: bytes) -> None:
+        key = starter_half + receiver_half
         iv = os.urandom(64)
         cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
         self.encryptor = cipher.encryptor()
