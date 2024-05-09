@@ -20,11 +20,11 @@ class Secret:
         self.encryptor = cipher.encryptor()
         self.decryptor = cipher.decryptor()
 
-    def encrypt(self, message: str) -> bytes:
-        return self.__chunk(message.encode(), self.encryptor)
+    def encrypt(self, message: bytes) -> bytes:
+        return self.__chunk(message, self.encryptor)
 
-    def decrypt(self, encrypted: bytes) -> str:
-        return self.__chunk(encrypted, self.decryptor).decode()
+    def decrypt(self, encrypted: bytes) -> bytes:
+        return self.__chunk(encrypted, self.decryptor)
 
     def __chunk(self, data: bytes, cipher: CipherContext) -> bytes:
         res: bytes = b""
