@@ -1,0 +1,6 @@
+a_private_f = "demo/Alice_private_key"
+a_public_f = "demo/Alice_public_key"
+b_private_f = "demo/Bob_private_key"
+b_public_f = "demo/Bob_public_key"
+a_pgps_f = "demo/Alice_pgps"
+b_pgps_f = "demo/Bob_pgps"
