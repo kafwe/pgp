@@ -1,4 +1,5 @@
 import os
+from typing import Union
 from cryptography.hazmat.primitives.ciphers import (
     Cipher,
     CipherContext,
@@ -6,17 +7,39 @@ from cryptography.hazmat.primitives.ciphers import (
     modes,
 )
 
+KEY_LENGTH = 32
+IV_LENGTH = 32
 
-class Secret:
-    CHUNK_SIZE = 1024 * 1024
+
+# Represents the combination of a key and initialisation vector
+#   Both are necessary for AES
+# IV = Initialisation Vector
+class KeyIV:
+    key: bytes
+    iv: bytes
+
+    def __init__(self, concatted: Union[bytes, None] = None):
+        if concatted is None:
+            self.key = os.urandom(KEY_LENGTH)
+            self.iv = os.urandom(IV_LENGTH)
+        else:
+            self.key = concatted[:KEY_LENGTH]
+            self.iv = concatted[KEY_LENGTH:]
+
+    def get_concatted(self):
+        return self.key + self.iv
+
+
+class SecretKey:
     encryptor: CipherContext
     decryptor: CipherContext
+    CHUNK_SIZE = 1024 * 1024
+    kiv: KeyIV
 
-    # Halves must already be decrypted
-    def __init__(self, starter_half: bytes, receiver_half: bytes) -> None:
-        key = starter_half + receiver_half
-        iv = os.urandom(64)
-        cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
+    def __init__(self, kiv: Union[KeyIV, None] = None) -> None:
+        if kiv is None:
+            kiv = KeyIV()
+        cipher = Cipher(algorithms.AES(kiv.key), modes.CBC(kiv.iv))
         self.encryptor = cipher.encryptor()
         self.decryptor = cipher.decryptor()
 
