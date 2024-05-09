@@ -1,15 +1,12 @@
 import base64
-import rsa # library for everything pretty much
-# instead of rsa you're going to use pip install cryptography that Jordy sent
-
-### Create the TCP connection ###
 import socket
 import threading
-import rsa
+# instead of rsa library use pip install cryptography that Jordy sent
 
+# Creating the TCP connection
 choice = input("Do you want to host (1) or to connect (2): ")
 
-# server just made to accept the connection
+# Server just made to accept the connection
 if choice == "1":
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # AF_INET specifies IPV4, SOCK_STREAM specifies a TCP connection
     #server.bind(("196.24.152.20", 9999))
@@ -19,17 +16,18 @@ if choice == "1":
 
 elif choice == "2":
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client.connect((socket.gethostname(), 9999))
+    client.connect((socket.gethostname(), 9999)) # specify the IP of the machine you're connecting to 
     #client.connect(("196.24.152.20", 9999))
 
 else:
     exit()
 
 
+# Sending the message
 def sending_messages(c):
     while True:
         # Getting image information
-        image_path = input("Enter the path of the image file: ")  # Ask the user for the image file path
+        image_path = input("Enter the path of the image file:\n")  # Ask the user for the image file path
 
         with open(image_path, "rb") as file: 
             image_data = file.read()  # Read the image file
@@ -46,13 +44,13 @@ def sending_messages(c):
 
         # Create packet
         message_header = f'{caption_length:<3}{image_data_length:<8}' # 3 bytes for caption length, 8 for image size 
-        message = caption + image_data_base64_padded 
+        message = caption + image_data_base64_padded  # full message is made up of caption and image
         packet = message_header + message
-
-        print(packet)
+        #print(packet)
 
         # Send packet to reciever
         c.send(packet.encode())
+        #print("Image sent") 
 
 
 def receiving_messages(c):
@@ -64,7 +62,7 @@ def receiving_messages(c):
         message = c.recv(1024).decode() # recieve message and decode it out of bits
 
         if not header_recieved:
-            print("new message recieved")
+            print("New message recieved")
             caption_length = int(message[0:3])
             image_data_length = int(message[3:11])
 
@@ -72,38 +70,20 @@ def receiving_messages(c):
             print(f'Image data is of length {image_data_length}')
 
             full_message += message[11:]  # add to the message (not including the header)
-
             header_recieved = True  # no longer a new message
         
         else:
             full_message += message
 
-        if len(full_message) == (caption_length + image_data_length):  # Once you've recieved the full message
+        if len(full_message) == (caption_length + image_data_length):  # Once you've recieved the full message, split the caption and image
             caption = full_message[:caption_length]
-            #image_data = full_message[caption_length:] 
             image_data = base64.b64decode(full_message[caption_length:].encode())  # Convert base64 back to image data
-            header_recieved = False  # you have recieved the full message, so now wait for a new message
+            
+            header_recieved = False  # You have recieved the full message, so now wait for a new message
             full_message = ""
 
             print(f'Image caption: {caption}')
             save_image(image_data)  # save the image as a file
-
-        # Check if the message contains the expected delimiter
-        # if "|" not in data:
-        #     print("Invalid message format. Expected delimiter '|' not found.")
-        #     continue
-
-        # caption, image_data_base64 = data.split("|") # seperate caption and image data with | delimeter
-
-        # # Convert base64 back to image data
-        # image_data = base64.b64decode(image_data_base64.encode())
-
-        # # Save the image
-        # with open("received_image.jpg", "wb") as file:
-        #     file.write(image_data)
-
-        # print(f"Image saved as 'received_image.jpg'")
-        # print(f"Caption: {caption}")
 
 
 def save_image(image_data):
@@ -120,10 +100,14 @@ threading.Thread(target=receiving_messages, args=(client,)).start()
 
 
 ### Structure of the Message ###
-# A caption
-# Then the image encoded as a string
-# So the app must first prompt the user to select/name a file.
-# Then it must prompt them to write a caption for the image.
+''' A caption + the image data encoded as a string
+
+So the app must first prompt the user to select/name a file.
+Then it must prompt them to write a caption for the image.
+
+HeaderSize is fixed at 11 bytes - 3 bytes for caption length, 8 bytes for image data length
+'''
+
 
 
 
