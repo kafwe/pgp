@@ -1,5 +1,4 @@
 import os
-from typing import Union
 from cryptography.hazmat.primitives.ciphers import (
     Cipher,
     CipherContext,
@@ -18,7 +17,7 @@ class _KeyIV:
     key: bytes
     iv: bytes
 
-    def __init__(self, concatted: Union[bytes, None] = None):
+    def __init__(self, concatted: bytes | None = None):
         if concatted is None:
             self.key = os.urandom(KEY_LENGTH)
             self.iv = os.urandom(IV_LENGTH)
@@ -36,7 +35,7 @@ class SecretKey:
     CHUNK_SIZE = 1024 * 1024
     kiv: _KeyIV
 
-    def __init__(self, secret_bytes: Union[bytes, None] = None) -> None:
+    def __init__(self, secret_bytes: bytes | None = None) -> None:
         kiv = _KeyIV(secret_bytes)
         cipher = Cipher(algorithms.AES(kiv.key), modes.CBC(kiv.iv))
         self.encryptor = cipher.encryptor()

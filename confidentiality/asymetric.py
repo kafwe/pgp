@@ -1,5 +1,4 @@
 from typing import Tuple
-from typing import Union
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization as srlz
 
@@ -40,7 +39,7 @@ class PrivateKey:
     def save(
         self,
         fileName: str = "private_key",
-        password: Union[str, None] = None,
+        password: str | None = None,
     ) -> None:
         if password is not None:
             data = self.key.private_bytes(
@@ -66,7 +65,7 @@ def generate_key_pair() -> Tuple[PrivateKey, PublicKey]:
 
 
 def load_private_key(
-    fileName: str = "private_key", password: Union[str, None] = None
+    fileName: str = "private_key", password: str | None = None
 ) -> PrivateKey:
     with open(f"keys/{fileName}", "rb") as key_file:
         if password is not None:
