@@ -1,5 +1,4 @@
 import os
-from typing import Tuple
 
 from cryptography.hazmat.primitives.ciphers import (
     Cipher,
@@ -44,7 +43,7 @@ class SecretKey:
     # Represents the combination of a key and initialisation vector
     #   Both are necessary for AES
     # IV = Initialisation Vector
-    def _key_iv(self, concatted: bytes | None = None) -> Tuple[bytes, bytes]:
+    def _key_iv(self, concatted: bytes | None = None) -> tuple[bytes, bytes]:
         if concatted is None:
             key = os.urandom(KEY_LENGTH)
             iv = os.urandom(IV_LENGTH)

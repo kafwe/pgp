@@ -1,5 +1,3 @@
-from typing import Tuple
-
 from cryptography.hazmat.primitives import serialization as srlz
 
 from confidentiality.asymetric import (
@@ -21,7 +19,7 @@ from tests.file_names import (
 
 
 def gen_and_save_keys() -> (
-    Tuple[Tuple[PrivateKey, PublicKey], Tuple[PrivateKey, PublicKey]]
+    tuple[tuple[PrivateKey, PublicKey], tuple[PrivateKey, PublicKey]]
 ):
     a_private, a_public = generate_key_pair()
     b_private, b_public = generate_key_pair()
@@ -33,13 +31,13 @@ def gen_and_save_keys() -> (
     return (a_private, a_public), (b_private, b_public)
 
 
-def read_private_keys() -> Tuple[PrivateKey, PrivateKey]:
+def read_private_keys() -> tuple[PrivateKey, PrivateKey]:
     alice = load_private_key(a_private_f, "secure_password")
     bob = load_private_key(b_private_f, "secure_password")
     return alice, bob
 
 
-def read_public_keys() -> Tuple[PublicKey, PublicKey]:
+def read_public_keys() -> tuple[PublicKey, PublicKey]:
     alice = load_public_key(a_public_f)
     bob = load_public_key(b_public_f)
     return alice, bob

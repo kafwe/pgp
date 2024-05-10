@@ -1,4 +1,3 @@
-from typing import Tuple
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization as srlz
 
@@ -58,7 +57,7 @@ class PrivateKey:
             file.write(data)
 
 
-def generate_key_pair() -> Tuple[PrivateKey, PublicKey]:
+def generate_key_pair() -> tuple[PrivateKey, PublicKey]:
     private_key = rsa.generate_private_key(65537, 2048)
     public_key = private_key.public_key()
     return PrivateKey(private_key), PublicKey(public_key)

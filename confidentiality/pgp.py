@@ -1,4 +1,3 @@
-from typing import Tuple
 from confidentiality.asymetric import PublicKey, PrivateKey
 from confidentiality.symetric import SecretKey
 
@@ -21,7 +20,7 @@ def pgp_encrypt(message: bytes, peer_public_key: PublicKey) -> bytes:
     return secret_length + encrypted_secret + encrypted_message
 
 
-def _split(data: bytes) -> Tuple[bytes, bytes]:
+def _split(data: bytes) -> tuple[bytes, bytes]:
     secret_length = int.from_bytes(data[:SECRET_lENGTH_BYTES], byteorder="big")
     data = data[SECRET_lENGTH_BYTES:]
     encrypted_secret = data[:secret_length]
