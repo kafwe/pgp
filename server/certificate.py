@@ -8,6 +8,27 @@ from confidentiality.asymetric import PublicKey, PrivateKey
 class CertificateExpiredError(Exception):
     pass
 
+class CertificateAuthority:
+    _instance = None
+
+    def __new__(cls, ca_private_key: PrivateKey, ca_public_key: PublicKey):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance.ca_private_key = ca_private_key
+            cls._instance.ca_public_key = ca_public_key
+        return cls._instance
+
+    def __init__(self, ca_private_key: PrivateKey, ca_public_key: PublicKey):
+        pass
+
+    def sign_user_key(self, username: str, user_public_key: PublicKey, ttl_days: int = 30) -> "Certificate":
+        certificate = Certificate.generate(username, user_public_key, self.ca_private_key, ttl_days)
+        return certificate
+
+    @property
+    def public_key(self) -> PublicKey:
+        return self.ca_public_key
+
 class Certificate:
     def __init__(self, username: str, public_key: PublicKey, signature: bytes, ttl_days: int = 30):
         self.username = username
