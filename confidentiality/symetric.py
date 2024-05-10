@@ -1,4 +1,6 @@
 import os
+from typing import Tuple
+
 from cryptography.hazmat.primitives.ciphers import (
     Cipher,
     CipherContext,
@@ -10,34 +12,16 @@ KEY_LENGTH = 32
 IV_LENGTH = 32
 
 
-# Represents the combination of a key and initialisation vector
-#   Both are necessary for AES
-# IV = Initialisation Vector
-class _KeyIV:
-    key: bytes
-    iv: bytes
-
-    def __init__(self, concatted: bytes | None = None):
-        if concatted is None:
-            self.key = os.urandom(KEY_LENGTH)
-            self.iv = os.urandom(IV_LENGTH)
-        else:
-            self.key = concatted[:KEY_LENGTH]
-            self.iv = concatted[KEY_LENGTH:]
-
-    def get_concatted(self):
-        return self.key + self.iv
-
-
 class SecretKey:
     encryptor: CipherContext
     decryptor: CipherContext
     CHUNK_SIZE = 1024 * 1024
-    kiv: _KeyIV
+    kiv: bytes
 
     def __init__(self, secret_bytes: bytes | None = None) -> None:
-        kiv = _KeyIV(secret_bytes)
-        cipher = Cipher(algorithms.AES(kiv.key), modes.CBC(kiv.iv))
+        key, iv = self._key_iv(secret_bytes)
+        self.kiv = key + iv
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
         self.encryptor = cipher.encryptor()
         self.decryptor = cipher.decryptor()
 
@@ -56,3 +40,15 @@ class SecretKey:
                 break
             res += cipher.update(chunk)
         return res + cipher.finalize()
+
+    # Represents the combination of a key and initialisation vector
+    #   Both are necessary for AES
+    # IV = Initialisation Vector
+    def _key_iv(self, concatted: bytes | None = None) -> Tuple[bytes, bytes]:
+        if concatted is None:
+            key = os.urandom(KEY_LENGTH)
+            iv = os.urandom(IV_LENGTH)
+        else:
+            key = concatted[:KEY_LENGTH]
+            iv = concatted[KEY_LENGTH:]
+        return key, iv

@@ -13,9 +13,9 @@ def pgp_decrypt(data: bytes, private_key: PrivateKey) -> bytes:
     return secret.decrypt(encrypted_message)
 
 
-def pgp_encrypt(data: bytes, peer_public_key: PublicKey) -> bytes:
+def pgp_encrypt(message: bytes, peer_public_key: PublicKey) -> bytes:
     secret = SecretKey()
-    encrypted_secret = peer_public_key.encrypt(secret.kiv.get_concatted())
+    encrypted_secret = peer_public_key.encrypt(secret.kiv)
     encrypted_message = secret.encrypt(message)
     secret_length = len(encrypted_secret).to_bytes(SECRET_lENGTH_BYTES, byteorder="big")
     return secret_length + encrypted_secret + encrypted_message
