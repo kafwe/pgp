@@ -1,3 +1,4 @@
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization as srlz
 
@@ -10,6 +11,9 @@ class PublicKey:
 
     def encrypt(self, data: bytes) -> bytes:
         return self.key.encrypt(data, padding.PKCS1v15())
+
+    def verify(self, message: bytes, signature: bytes):
+        self.key.verify(signature, message, padding.PKCS1v15(), hashes.SHA256())
 
     def save(self, fileName: str = "public_keys"):
         data = self.key.public_bytes(
@@ -30,6 +34,13 @@ class PrivateKey:
         return self.key.decrypt(
             data,
             padding.PKCS1v15(),
+        )
+
+    def sign(self, message: bytes) -> bytes:
+        return self.key.sign(
+            message,
+            padding.PKCS1v15(),
+            hashes.SHA256(),
         )
 
     def get_public_key(self) -> PublicKey:
