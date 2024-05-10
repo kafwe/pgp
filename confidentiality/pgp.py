@@ -1,23 +1,29 @@
+from typing import Tuple
 from confidentiality.asymetric import PublicKey, PrivateKey
-from confidentiality.symetric import KeyIV, SecretKey
+from confidentiality.symetric import SecretKey
+
+# Number of bytes dedicated to stating the secret's length
+SECRET_lENGTH_BYTES = 2
 
 
-class PGP:
-    encrypted_message: bytes
-    encrypted_secret: bytes
-
-    def __init__(self, encrypted_message, encrypted_secret):
-        self.encrypted_message = encrypted_message
-        self.encrypted_secret = encrypted_secret
-
-    def decrypt_message(self, private_key: PrivateKey) -> bytes:
-        kiv = KeyIV(private_key.decrypt(self.encrypted_secret))
-        secret = SecretKey(kiv)
-        return secret.decrypt(self.encrypted_message)
+# `data` represents the concatenated encrypted message and secret key
+def pgp_decrypt(data: bytes, private_key: PrivateKey) -> bytes:
+    encrypted_secret, encrypted_message = _split(data)
+    secret = SecretKey(private_key.decrypt(encrypted_secret))
+    return secret.decrypt(encrypted_message)
 
 
-def gen_pgp(message: bytes, peer_public_key: PublicKey) -> PGP:
+def pgp_encrypt(message: bytes, peer_public_key: PublicKey) -> bytes:
     secret = SecretKey()
     encrypted_secret = peer_public_key.encrypt(secret.kiv.get_concatted())
     encrypted_message = secret.encrypt(message)
-    return PGP(encrypted_message, encrypted_secret)
+    secret_length = len(encrypted_secret).to_bytes(SECRET_lENGTH_BYTES, byteorder="big")
+    return secret_length + encrypted_secret + encrypted_message
+
+
+def _split(data: bytes) -> Tuple[bytes, bytes]:
+    secret_length = int.from_bytes(data[:SECRET_lENGTH_BYTES], byteorder="big")
+    data = data[SECRET_lENGTH_BYTES:]
+    encrypted_secret = data[:secret_length]
+    encrypted_message = data[secret_length:]
+    return encrypted_secret, encrypted_message
