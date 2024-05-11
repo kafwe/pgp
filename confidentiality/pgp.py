@@ -17,12 +17,12 @@ def pgp_encrypt(message: bytes, peer_public_key: PublicKey) -> bytes:
     secret = SecretKey()
     e_secret = peer_public_key.encrypt(secret.kiv)
     e_message = secret.encrypt(message)
-    secret_len = len(e_secret).to_bytes(SECRET_lENGTH_BYTES, byteorder="big")
+    secret_len = len(e_secret).to_bytes(SECRET_lENGTH_BYTES, "big")
     return secret_len + e_secret + e_message
 
 
 def _split(data: bytes) -> tuple[bytes, bytes]:
-    secret_len = int.from_bytes(data[:SECRET_lENGTH_BYTES], byteorder="big")
+    secret_len = int.from_bytes(data[:SECRET_lENGTH_BYTES], "big")
     data = data[SECRET_lENGTH_BYTES:]
     e_secret = data[:secret_len]
     e_message = data[secret_len:]

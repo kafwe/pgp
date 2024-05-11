@@ -2,40 +2,14 @@ import socket
 import threading
 import communication.communication as comms
 
-import logging
-import sys
-
-logging.basicConfig(
-    level=logging.DEBUG, format="%(name)s - %(levelname)s: \n%(message)s"
-)
-logger = logging.getLogger(__name__)
-
-if "--debug" in sys.argv:
-    log_level = logging.DEBUG
-else:
-    log_level = logging.CRITICAL
-
 
 def main():
     choice = input("Do you want to host (1) or to connect (2): ")
 
-    # Server just made to accept the connection
     if choice == "1":
-        server = socket.socket(
-            socket.AF_INET, socket.SOCK_STREAM
-        )  # AF_INET specifies IPV4, SOCK_STREAM specifies a TCP connection
-        # server.bind(("196.24.152.20", 9999))
-        server.bind((socket.gethostname(), 9999))
-        server.listen()
-        client, _ = server.accept()
-
+        client = comms.start_server()
     elif choice == "2":
-        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client.connect(
-            (socket.gethostname(), 9999)
-        )  # specify the IP of the machine you're connecting to
-        # client.connect(("196.24.152.20", 9999))
-
+        client = comms.start_client()
     else:
         exit()
 
@@ -54,3 +28,18 @@ Then it must prompt them to write a caption for the image.
 
 HeaderSize is fixed at 11 bytes - 3 bytes for caption length, 8 bytes for image data length
 """
+
+
+def start_server() -> socket.socket:
+    # AF_INET specifies IPV4, SOCK_STREAM specifies a TCP connection
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind((socket.gethostname(), 9999))
+    server.listen()
+    client, _ = server.accept()
+    return client
+
+
+def start_client(ip_address: str = socket.gethostname()) -> socket.socket:
+    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client.connect((ip_address, 9999))
+    return client
