@@ -15,8 +15,8 @@ def main():
     else:
         exit()
 
-    threading.Thread(target=msg.sending_messages, args=(client,)).start()
-    threading.Thread(target=msg.receiving_messages, args=(client,)).start()
+    threading.Thread(target=msg.send, args=(client,)).start()
+    threading.Thread(target=msg.receive, args=(client,)).start()
 
 
 if __name__ == "__main__":
