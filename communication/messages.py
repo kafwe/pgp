@@ -45,7 +45,7 @@ def receive(c: socket.socket, private_key: PrivateKey):
 
         print(f"Image caption: {caption}")
         # TODO: Give the user an option to choose file_name
-        _save_image(image, "received_image.jpg")  # save the image as a file
+        _save_image(image, "received_image.jpg")
 
 
 def _create_header(caption_length: int) -> bytes:
