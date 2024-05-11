@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives.ciphers import (
 )
 
 KEY_LENGTH = 32
-IV_LENGTH = 32
+IV_LENGTH = 16
 
 
 class SecretKey:
@@ -38,7 +38,7 @@ class SecretKey:
             if len(chunk) == 0:
                 break
             res += cipher.update(chunk)
-        return res + cipher.finalize()
+        return res
 
     # Represents the combination of a key and initialisation vector
     #   Both are necessary for AES
