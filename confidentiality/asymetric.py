@@ -12,7 +12,7 @@ class PublicKey:
     def encrypt(self, data: bytes) -> bytes:
         return self.key.encrypt(data, padding.PKCS1v15())
 
-    def verify(self, message: bytes, signature: bytes):
+    def verify_key(self, message: bytes, signature: bytes):
         self.key.verify(signature, message, padding.PKCS1v15(), hashes.SHA256())
 
     def save(self, fileName: str = "public_keys"):
@@ -22,6 +22,7 @@ class PublicKey:
         )
         with open(f"keys/{fileName}", "wb") as file:
             file.write(data)
+    
 
 
 class PrivateKey:
