@@ -8,7 +8,7 @@ def configure():
     else:
         log_level = logging.CRITICAL
 
-    logging.basicConfig(level=log_level, format="%(message)s")
+    logging.basicConfig(level=log_level, format="\033[94m%(message)s\033[0m")
 
 
 def get_logger():
