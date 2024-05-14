@@ -2,10 +2,12 @@ import socket
 from log import log
 
 
-def chunk(c: socket.socket) -> bytes:
+def chunk(s: socket.socket) -> bytes | None:
     message: bytes = b""
     while True:
-        chunk = c.recv(1024)
+        chunk = s.recv(1024)
+        if not chunk:
+            return None
         log(f"Chunk:{chunk}")
         message += chunk
         if len(chunk) < 1024:
