@@ -118,7 +118,8 @@ class Server:
         try:
             send_queue = self.send_queue.items()
             for user, messages in send_queue:
-                s += f"{len(messages)} messages for {user}\n"
+                if len(messages) == 0:
+                    s += f"{len(messages)} messages for {user}\n"
             return s
         except Exception:
             return "ERROR: messages modified while reading. Please try again."
@@ -127,6 +128,9 @@ class Server:
         # TODO: Save messages
         self.isShutdown = True
         self.sock.shutdown(socket.SHUT_RDWR)
+        sockets = list(self.online.values())
+        for s in sockets:
+            s.shutdown(socket.SHUT_RDWR)
 
 
 def _verify_login(random: bytes, received: bytes) -> tuple[bool, str]:

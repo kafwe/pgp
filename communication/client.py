@@ -33,6 +33,7 @@ class Client:
     server_public_key: PublicKey
     username: str
     certificate: bytes
+    isShutdown: bool
 
     def __init__(
         self,
@@ -103,6 +104,7 @@ class Client:
     def send_image(
         self, peer_username: str, peer_public_key: PublicKey, image: bytes, caption: str
     ):
+        # TODO add compression
         header = _create_header(self.username, caption)
         encrypted = pgp.pgp_encrypt(header + image, peer_public_key)
 
@@ -114,8 +116,11 @@ class Client:
         print("Message sent")
 
     def login(self) -> bool:
-        print("Logging in")
+        print("Logging in...")
         received = self.server_socket.recv(1024)
+        if received is None:
+            print("Server is no longer online. Shutting down...")
+            return False
         random = received[:8]
         sig = received[8:]
         log(
@@ -139,6 +144,10 @@ class Client:
         if not valid:
             print("Login rejected. Are you using a valid certificate?")
         return valid
+
+    def shutdown(self):
+        self.isShutdown = True
+        self.server_socket.shutdown(socket.SHUT_RDWR)
 
 
 def _create_header(sender: str, caption: str) -> bytes:
@@ -184,6 +193,8 @@ def _save_image(image_data: bytes, sender: str, caption: str):
 
 def start(
     username: str,
+    private_key: PrivateKey,
+    server_public_key: PublicKey,
     server_address: str | None,
     server_port=9999,
 ) -> Client:
@@ -197,14 +208,10 @@ def start(
     user = username.encode()
     user_len = len(user).to_bytes(1)
 
-    pri_key = load_private_key(f"{username}/private")
-    server_pub_key = load_public_key("server/public")
-    log("Succesfully loaded private and public keys")
-
     client = Client(
         server,
-        pri_key,
-        server_pub_key,
+        private_key,
+        server_public_key,
         username,
         user_len + user + load_public_key_bytes(f"{username}/public"),
     )

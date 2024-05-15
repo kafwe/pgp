@@ -26,19 +26,12 @@ def main():
         log.log(f"Generated public and private keys for: {username}")
         return
 
-    port = 9999
-    if "--port" in sys.argv:
-        i = sys.argv.index("--port") + 1
-        port = int(sys.argv[i])
-
-    log.log(f"Using server port {port}")
-
     choice = input("Server (1) or Client (2)?\n")
 
     if choice == "1":
-        server_cli(port)
+        server_cli()
     elif choice == "2":
-        client_cli(port)
+        client_cli()
     else:
         return
 
