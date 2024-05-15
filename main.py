@@ -73,7 +73,7 @@ def _client_cli(port: int):
             image = _load_image(image_path)
             caption = input("Enter a caption for the image: ")
             send(peer, pub_key, image, caption)
-        else:
+        elif choice == "2":
             return
 
 

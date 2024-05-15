@@ -43,6 +43,7 @@ class _Client:
         self.server_public_key = server_public_key
         self.username = username
         self.certificate = certificate
+        log(f"Initialised user {username} with certificate: {certificate}")
 
     def receive(self) -> bool:
         data = chunk(self.server_socket)
