@@ -67,6 +67,7 @@ def _start(
     except Exception as e:
         log(str(e))
         print("Invalid port.")
+        return
     if port == "":
         port = int(9999)
 
