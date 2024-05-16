@@ -43,7 +43,7 @@ Options:
             image_path = input(
                 f"Enter the path of the image file (relative to project_root/images/{username}/):\n"
             )
-            image = _load_image(f"images/{image_path}")
+            image = _load_image(username, f"images/{image_path}")
             if image is None:
                 continue
             caption = input("Enter a caption for the image: \n")
@@ -89,7 +89,10 @@ def _request_certificate(client: Client, peer: str):
         print("Request sent. Try sending again once you have received the key.")
 
 
-def _load_image(image_path: str) -> bytes | None:
+def _load_image(username: str, image_path: str) -> bytes | None:
+    dir = f"images/{username}"
+    if not os.path.exists(dir):
+        os.makedirs(dir)
     try:
         with open(image_path, "rb") as file:
             image_data = file.read()  # Read the image file
