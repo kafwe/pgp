@@ -1,16 +1,15 @@
-import logging
+import log
 import sys
 import tests.tests as tests
 
 
-if "--debug" in sys.argv:
-    log_level = logging.DEBUG
-else:
-    log_level = logging.CRITICAL
-
-logging.basicConfig(level=log_level, format="%(message)s")
-logger = logging.getLogger(__name__)
-
-
 def run():
-    print("test key saving:", tests.test_key_saving())
+    log.configure()
+    print("test key saving:", tests.test_key_saving(), "\n\n")
+    print("test asym encryption:", tests.test_asym_encryption(), "\n\n")
+    print("test sym encryption:", tests.test_sym_encryption(), "\n\n")
+    print("test pgp encryption:", tests.test_pgp_encryption(), "\n\n")
+
+
+if __name__ == "__main__":
+    run()

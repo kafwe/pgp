@@ -1,56 +1,40 @@
-import socket
-import threading
-import communication.communication as comms
-
-import logging
 import sys
-
-logging.basicConfig(
-    level=logging.DEBUG, format="%(name)s - %(levelname)s: \n%(message)s"
+import threading
+from cli.client_cli import client_cli
+from cli.server_cli import server_cli
+import log
+from confidentiality.asymetric import (
+    generate_key_pair,
+    load_private_key,
+    load_public_key,
 )
-logger = logging.getLogger(__name__)
-
-if "--debug" in sys.argv:
-    log_level = logging.DEBUG
-else:
-    log_level = logging.CRITICAL
 
 
 def main():
-    choice = input("Do you want to host (1) or to connect (2): ")
+    log.configure()
+    log.log("Logging enabled")
 
-    # Server just made to accept the connection
+    if "--gen" in sys.argv:
+        i = sys.argv.index("--gen")
+        username = sys.argv[i + 1]
+        password = sys.argv[i + 2] if len(sys.argv) > i + 2 else None
+
+        private, public = generate_key_pair()
+        private.save(f"{username}/private", password)
+        public.save(f"{username}/public")
+
+        log.log(f"Generated public and private keys for: {username}")
+        return
+
+    choice = input("Server (1) or Client (2)?\n")
+
     if choice == "1":
-        server = socket.socket(
-            socket.AF_INET, socket.SOCK_STREAM
-        )  # AF_INET specifies IPV4, SOCK_STREAM specifies a TCP connection
-        # server.bind(("196.24.152.20", 9999))
-        server.bind((socket.gethostname(), 9999))
-        server.listen()
-        client, _ = server.accept()
-
+        server_cli()
     elif choice == "2":
-        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client.connect(
-            (socket.gethostname(), 9999)
-        )  # specify the IP of the machine you're connecting to
-        # client.connect(("196.24.152.20", 9999))
-
+        client_cli()
     else:
-        exit()
-
-    threading.Thread(target=comms.sending_messages, args=(client,)).start()
-    threading.Thread(target=comms.receiving_messages, args=(client,)).start()
+        return
 
 
 if __name__ == "__main__":
     main()
-
-### Structure of the Message ###
-""" A caption + the image data encoded as a string
-
-So the app must first prompt the user to select/name a file.
-Then it must prompt them to write a caption for the image.
-
-HeaderSize is fixed at 11 bytes - 3 bytes for caption length, 8 bytes for image data length
-"""
