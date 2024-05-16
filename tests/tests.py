@@ -65,13 +65,13 @@ def test_asym_encryption() -> bool:
     a_public, b_public = read_public_keys()
     message = b"top_secret_message"
     log("Encrypting a")
-    a_encrypted = a_public.encrypt(message)
+    a_encrypted = a_public.rsa_encrypt(message)
     log("Encrypting b")
-    b_encrypted = b_public.encrypt(message)
+    b_encrypted = b_public.rsa_encrypt(message)
     log("Decrypting a")
-    a_decrypted = a_private.decrypt(a_encrypted)
+    a_decrypted = a_private.rsa_decrypt(a_encrypted)
     log("Decrypting b")
-    b_decrypted = b_private.decrypt(b_encrypted)
+    b_decrypted = b_private.rsa_decrypt(b_encrypted)
     return a_decrypted == message and b_decrypted == message
 
 
@@ -79,13 +79,13 @@ def test_sym_encryption() -> bool:
     sk = SecretKey()
     message = b"top_secret_message"
     log("Encrypting")
-    encrypted = sk.encrypt(message)
+    encrypted = sk.aes_encrypt(message)
     kiv = sk.kiv
     log("Decrypting without transfer")
-    decrypted1 = sk.decrypt(encrypted)
+    decrypted1 = sk.aes_decrypt(encrypted)
     log(decrypted1.decode())
     log("Decrypting with transfer")
-    decrypted2 = SecretKey(kiv).decrypt(encrypted)
+    decrypted2 = SecretKey(kiv).aes_decrypt(encrypted)
     log(decrypted1.decode())
     return decrypted1 == message and decrypted2 == message
 

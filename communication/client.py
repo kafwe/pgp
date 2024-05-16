@@ -1,3 +1,4 @@
+import os
 import socket
 import threading
 from datetime import datetime
@@ -73,7 +74,7 @@ class Client:
                 )
                 log(str(decrypted))
                 return True
-            _receive_image(decrypted)
+            _receive_image(decrypted, self.username)
         elif code == CERT_REQUEST_CODE:
             peer = data.decode()
             print(f"Received certificate request from {peer}")
@@ -186,11 +187,14 @@ def _split_header_message(data: bytes) -> tuple[int, int, bytes]:
     return caption_length, from_length, message
 
 
-def _save_image(image_data: bytes, sender: str, caption: str):
-    date_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+def _save_image(image_data: bytes, username: str, sender: str, caption: str):
+    dir = f"images/{username}"
+    if not os.path.exists(dir):
+        os.makedirs(dir)
+    date_time = datetime.now().strftime("%Y-%m-%d--%H:%M:%S")
     file_name = f"{date_time}--{sender}--{caption}"
 
-    with open(f"images/{file_name}", "wb") as file:
+    with open(f"images/{username}/{file_name}", "wb") as file:
         file.write(image_data)
 
     print(f"Image saved as {file_name}")
@@ -234,7 +238,7 @@ def _receive_thread(client: Client):
         open = client.receive()
 
 
-def _receive_image(decrypted: bytes):
+def _receive_image(decrypted: bytes, username: str):
     caption_length, from_length, message = _split_header_message(decrypted)
     log(f"From is of length: {from_length}")
 
@@ -245,5 +249,5 @@ def _receive_image(decrypted: bytes):
 
     print(f"Received Image from: {sender}")
     print(f"Image caption: {caption}")
-    _save_image(image, sender.decode(), caption)
+    _save_image(image, username, sender.decode(), caption)
     return True
