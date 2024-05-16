@@ -1,117 +1,124 @@
-import json
-import base64
+import sqlite3
 from datetime import datetime, timedelta
-from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives import serialization as srlz
-from confidentiality.asymetric import PublicKey, PrivateKey, generate_key_pair
+from asymetric import PrivateKey, PublicKey, generate_key_pair
 
 class CertificateExpiredError(Exception):
     pass
 
-class CertificateAuthority:
-    _instance = None
-
-    def __new__(cls, ca_private_key: PrivateKey, ca_public_key: PublicKey):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance.ca_private_key = ca_private_key
-            cls._instance.ca_public_key = ca_public_key
-        return cls._instance
-
-    def __init__(self, ca_private_key: PrivateKey, ca_public_key: PublicKey):
-        pass
-
-    def sign_user_key(self, username: str, user_public_key: PublicKey, ttl_days: int = 30) -> "Certificate":
-        certificate = Certificate.generate(username, user_public_key, self.ca_private_key, ttl_days)
-        return certificate
-
-    @property
-    def public_key(self) -> PublicKey:
-        return self.ca_public_key
 
 class Certificate:
-    def __init__(self, username: str, public_key: PublicKey, signature: bytes, creation_time: datetime = None, expiration_time: datetime = None, ttl_days: int = 30):
+    def __init__(self, username: bytes, public_key: bytes, signature: bytes, creation_time: datetime = None, ttl_days: int = 365):
         self.username = username
         self.public_key = public_key
         self.signature = signature
-        self.creation_time = creation_time or datetime.utcnow()
-        self.expiration_time = expiration_time or self.creation_time + timedelta(days=ttl_days)
+        self.creation_time = creation_time or datetime.now()
+        self.expiration_time = self.creation_time + timedelta(days=ttl_days)
 
-
-    @classmethod
-    def generate(cls, username: str, user_public_key: PublicKey, ca_private_key: PrivateKey, ttl_days: int = 30) -> "Certificate":
-        # Sign user's username
-        data_to_sign = username.encode()
-        signature = ca_private_key.sign(data_to_sign)
-        return cls(username, user_public_key, signature, ttl_days=ttl_days)
-
-    def serialize(self) -> str:
-        certificate_data = {
-            "username": self.username,
-            "public_key": self.public_key.key.public_bytes(
-                encoding=srlz.Encoding.PEM,
-                format=srlz.PublicFormat.SubjectPublicKeyInfo
-            ).decode(),
-            "signature": base64.b64encode(self.signature).decode(),
-            "creation_time": self.creation_time.isoformat(),
-            "expiration_time": self.expiration_time.isoformat()
-        }
-        return json.dumps(certificate_data)
+    def serialize(self) -> bytes:
+        return b'|'.join([self.username, self.public_key, self.signature, self.creation_time.isoformat().encode(), self.expiration_time.isoformat().encode()])
 
     @classmethod
-    def deserialize(cls, data: str) -> "Certificate":
-        certificate_data = json.loads(data)
-        username = certificate_data["username"]
-        public_key = srlz.load_pem_public_key(certificate_data["public_key"].encode())
-        signature = base64.b64decode(certificate_data["signature"])
-        creation_time = datetime.fromisoformat(certificate_data["creation_time"])
-        expiration_time = datetime.fromisoformat(certificate_data["expiration_time"])
-        return cls(username, public_key, signature, creation_time, expiration_time)
+    def deserialize(cls, serialized_certificate: bytes) -> "Certificate":
+        parts = serialized_certificate.split(b'|')
+        username, public_key, signature, creation_time, expiration_time = parts
+        return cls(username, public_key, signature, datetime.fromisoformat(creation_time.decode()), (datetime.fromisoformat(expiration_time.decode()) - datetime.fromisoformat(creation_time.decode())).days)
 
-    def check(self) -> bool:
-        # Verify the signature
-        data_to_verify = self.username.encode()
+    def print(self):
+        print(f"Username: {self.username.decode()}")
+        print(f"Public Key: {self.public_key}")
+        print(f"Signature: {self.signature}")
+        print(f"Creation Time: {self.creation_time}")
+        print(f"Expiration Time: {self.expiration_time}")
+
+    def is_valid(self, ca_public_key: PublicKey, client_public_key: PublicKey) -> bool:
+        if datetime.now() > self.expiration_time:
+            raise ValueError("Certificate has expired.")
+        
+        data_to_verify = b''.join([self.username, self.public_key, self.creation_time.isoformat().encode(), self.expiration_time.isoformat().encode()])
         try:
-            self.public_key.verify_key(data_to_verify, self.signature)
-            # Verify the certificate hasn't expired
-            if datetime.utcnow() > self.expiration_time:
-                raise CertificateExpiredError("Certificate has expired")
+            ca_public_key.verify(self.signature, data_to_verify)
             return True
-        except InvalidSignature:
+        except Exception as e:
             return False
 
+class CertificateAuthority:
+    _instance = None
 
-def main():
-    # didn't account for keys coming from file. don't know if i need to change my code
-    # Generate CA keys
-    ca_private_key, ca_public_key = generate_key_pair()
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super(CertificateAuthority, cls).__new__(cls)
+        return cls._instance
 
-    # Create a Certificate Authority (Singleton)
-    ca = CertificateAuthority(ca_private_key, ca_public_key)
+    def __init__(self, private_key: PrivateKey, db_path: str = "certificates.db"):
+        if not hasattr(self, "initialized"):  # Ensures initialization happens only once
+            self.private_key = private_key
+            self.public_key = private_key.get_public_key()
+            self.db_path = db_path
+            self._initialize_db()
+            self.initialized = True
 
-    # Generate user keys
-    user_private_key, user_public_key = generate_key_pair()
-    # Sign user key
-    certificate = ca.sign_user_key("Alice", user_public_key)
+    def _initialize_db(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS certificates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT NOT NULL,
+                    public_key BLOB NOT NULL,
+                    signature BLOB NOT NULL,
+                    creation_time TEXT NOT NULL,
+                    expiration_time TEXT NOT NULL
+                )
+            """)
+            conn.commit()
 
-    # read up to here
+    def generate_certificate(self, username: bytes, user_public_key: PublicKey, ttl_days: int = 365) -> Certificate:
+        # check if username is in the database first and return an error if it is
+        if username.decode() in [row[0] for row in sqlite3.connect(self.db_path).cursor().execute("SELECT username FROM certificates").fetchall()]:
+            raise ValueError("Username already exists in the database.")
 
-    # Serialize and deserialize the certificate
+        creation_time = datetime.now()
+        expiration_time = creation_time + timedelta(days=ttl_days)
+        data_to_sign = b''.join([username.decode(), user_public_key, creation_time.isoformat().encode(), expiration_time.isoformat().encode()])
+        signature = self.private_key.sign(data_to_sign)
+        certificate = Certificate(username, user_public_key, signature, creation_time, ttl_days)
+        
+        self._store_certificate(certificate)
+        return certificate
+
+    def _store_certificate(self, certificate: Certificate):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO certificates (username, public_key, signature, creation_time, expiration_time)
+                VALUES (?, ?, ?, ?, ?)
+            """, (certificate.username, certificate.public_key, certificate.signature, certificate.creation_time.isoformat().encode(), certificate.expiration_time.isoformat().encode()))
+            conn.commit()
+
+    def get_certificate(self, username: bytes) -> Certificate:
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT username, public_key, signature, creation_time, expiration_time
+                FROM certificates
+                WHERE username = ?
+            """, (username,))
+            row = cursor.fetchone()
+            if row:
+                username, public_key, signature, creation_time, expiration_time = row
+                return Certificate(username, public_key, signature, datetime.fromisoformat(creation_time), (datetime.fromisoformat(expiration_time) - datetime.fromisoformat(creation_time)).days)
+            else:
+                return None
+
+# Example usage
+if __name__ == "__main__":
+    private_key, _ = generate_key_pair()
+    ca = CertificateAuthority(private_key)
+    _, user_public_key = generate_key_pair()
+    
+    certificate = ca.generate_certificate(b"example_user", user_public_key)
     serialized_certificate = certificate.serialize()
     deserialized_certificate = Certificate.deserialize(serialized_certificate)
-
-    # Verify the certificate
-    if deserialized_certificate.check():
-        print("Certificate is valid")
-    else:
-        print("Certificate is not valid or has expired")
-
-    # Attempt to modify and verify again (to test verification)
-    deserialized_certificate.username = "Eve"
-    if deserialized_certificate.check():
-        print("Modified certificate is valid")
-    else:
-        print("Modified certificate is not valid or has expired")
-
-if __name__ == "__main__":
-    main()
+    
+    deserialized_certificate.print()
+    print("Certificate valid:", deserialized_certificate.is_valid(ca.public_key, user_public_key))
