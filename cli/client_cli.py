@@ -62,15 +62,14 @@ def _start(
         address = None
 
     port = input("What is the server port? (default = 9999)\n")
+    if port == "":
+        port = int(9999)
     try:
         port = int(port)
     except Exception as e:
         log(str(e))
         print("Invalid port.")
         return
-    if port == "":
-        port = int(9999)
-
     try:
         client = start_client(username, private_key, server_public_key, address, port)
     except Exception as e:
