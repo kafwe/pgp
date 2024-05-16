@@ -27,11 +27,11 @@ class SecretKey:
         self.encryptor = cipher.encryptor()
         self.decryptor = cipher.decryptor()
 
-    def encrypt(self, message: bytes) -> bytes:
+    def aes_encrypt(self, message: bytes) -> bytes:
         padded = _pad(message)
         return self._chunk(padded, self.encryptor)
 
-    def decrypt(self, encrypted: bytes) -> bytes:
+    def aes_decrypt(self, encrypted: bytes) -> bytes:
         message = self._chunk(encrypted, self.decryptor)
         unpadded = _unpad(message)
         return unpadded

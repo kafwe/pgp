@@ -2,7 +2,6 @@ import socket
 import threading
 from collections import defaultdict
 from os import urandom
-from typing import Callable
 
 from log import log
 import confidentiality.pgp as pgp
@@ -11,9 +10,7 @@ from communication.client import DEST_LENGTH_BYTES
 from communication.fake_certificate import CERTIFICATE_LENGTH_BYTES, split_certificate
 from confidentiality.asymetric import (
     PrivateKey,
-    PublicKey,
     load_private_key,
-    public_key_from_bytes,
 )
 
 # class User:
@@ -44,8 +41,10 @@ class Server:
             return False
 
         log(f"Received {len(data)} bytes")
-        user, message = self._split_dest_message(data)
-
+        split = self._split_dest_message(data)
+        if split is None:
+            return True
+        user, message = split
         print(f"New message recieved! Forwarding to user: {user}")
 
         sq = self.send_queue.get(user)
@@ -55,7 +54,7 @@ class Server:
         self.send_queue[user] = sq
         return True
 
-    def _split_dest_message(self, data: bytes) -> tuple[str, bytes]:
+    def _split_dest_message(self, data: bytes) -> tuple[str, bytes] | None:
         dest_length = int.from_bytes(data[:DEST_LENGTH_BYTES])
         log(f"Splitting destination from message. dest_length: {dest_length}")
         data = data[DEST_LENGTH_BYTES:]
@@ -65,6 +64,13 @@ class Server:
 
         log(f"Decrypting dest: {dest_encrypted}")
         dest = pgp.pgp_decrypt(dest_encrypted, self.private_key)
+        if isinstance(dest, Exception):
+            print(
+                "Unable to decrypt destination. User is likely using the incorrect server public key."
+            )
+            log(str(dest))
+            return None
+        dest = bytes(dest)
         log(f"Decrypted dest: {dest}/{dest.decode()}")
         return dest.decode(), data
 

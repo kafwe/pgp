@@ -21,7 +21,6 @@ def client_cli():
 
     while not client.isShutdown:
         # TODO: Add public_key exchange. Currently assuming all users have all public_keys
-        # TODO: Add input validation
         print(
             """
 Options:
@@ -42,7 +41,7 @@ Options:
                 continue
 
             image_path = input(
-                "Enter the path of the image file (relative to project_root/images):\n"
+                f"Enter the path of the image file (relative to project_root/images/{username}/):\n"
             )
             image = _load_image(f"images/{image_path}")
             if image is None:

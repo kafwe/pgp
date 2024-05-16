@@ -10,7 +10,7 @@ class PublicKey:
     def __init__(self, key: rsa.RSAPublicKey) -> None:
         self.key = key
 
-    def encrypt(self, data: bytes) -> bytes:
+    def rsa_encrypt(self, data: bytes) -> bytes:
         return self.key.encrypt(data, padding.PKCS1v15())
 
     def verify(self, message: bytes, signature: bytes) -> bool:
@@ -35,7 +35,7 @@ class PrivateKey:
     def __init__(self, key: rsa.RSAPrivateKey) -> None:
         self.key = key
 
-    def decrypt(self, data: bytes) -> bytes:
+    def rsa_decrypt(self, data: bytes) -> bytes:
         return self.key.decrypt(
             data,
             padding.PKCS1v15(),
@@ -68,7 +68,6 @@ class PrivateKey:
                 srlz.PrivateFormat.TraditionalOpenSSL,
                 srlz.NoEncryption(),
             )
-
         with open(f"keys/{fileName}", "wb") as file:
             file.write(data)
 

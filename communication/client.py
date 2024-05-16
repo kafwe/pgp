@@ -66,6 +66,13 @@ class Client:
         if code == IMAGE_CODE:
             encrypted = data
             decrypted = pgp.pgp_decrypt(encrypted, self.private_key)
+            if isinstance(decrypted, Exception):
+                print(
+                    "ERROR: Unable to decrypt image. Peer may have incorrect public key."
+                    " It is recommended that you resend your certificate to them."
+                )
+                log(str(decrypted))
+                return True
             _receive_image(decrypted)
         elif code == CERT_REQUEST_CODE:
             peer = data.decode()
@@ -84,10 +91,7 @@ class Client:
         dest = peer.encode()
         log(f"Requesting certificate from {peer} = {dest}")
         encrypted_dest = pgp.pgp_encrypt(dest, self.server_public_key)
-        log(f"Encrypted dest = {encrypted_dest}")
-        log(f"Decrypted dest = {testDecrypt(encrypted_dest)}")
         dest_len = len(encrypted_dest).to_bytes(DEST_LENGTH_BYTES)
-        log(f"Requesting certificate. dest_len = {len(encrypted_dest)}")
         to_send = dest_len + encrypted_dest + CERT_REQUEST_CODE + self.username.encode()
         log(f"Sending {len(to_send)} bytes")
         self.server_socket.send(to_send)
@@ -239,14 +243,7 @@ def _receive_image(decrypted: bytes):
     sender = message[:from_length]
     image = message[from_length:]
 
-    print(f"From: {sender}")
+    print(f"Received Image from: {sender}")
     print(f"Image caption: {caption}")
-    # TODO: Give the user an option to choose file_name
     _save_image(image, sender.decode(), caption)
     return True
-
-
-def testDecrypt(data: bytes) -> bytes:
-    pri_key = load_private_key("server/private")
-    log(f"Loaded pri_key + {pri_key}")
-    return pgp.pgp_decrypt(data, pri_key)
