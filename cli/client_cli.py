@@ -19,10 +19,10 @@ def client_cli():
     if client is None:
         return
 
-    while True:
+    while not client.isShutdown:
         # TODO: Add public_key exchange. Currently assuming all users have all public_keys
         # TODO: Add input validation
-        choice = input(
+        print(
             """
 Options:
     Send Image (s)
@@ -32,6 +32,7 @@ Options:
     Quit(q)
             """
         )
+        choice = input()
         if choice == "s":
             peer = input("Enter recepient username\n")
             try:

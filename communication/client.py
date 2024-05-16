@@ -43,6 +43,7 @@ class Client:
         username: str,
         certificate: bytes,
     ):
+        self.isShutdown = False
         self.private_key = private_key
         self.server_socket = server_socket
         self.server_public_key = server_public_key
