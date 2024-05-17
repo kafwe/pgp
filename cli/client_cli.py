@@ -43,7 +43,6 @@ def client_cli():
         return
 
     while not client.isShutdown:
-        # TODO: Add public_key exchange. Currently assuming all users have all public_keys
         print(
             """
 Options:

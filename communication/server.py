@@ -28,7 +28,6 @@ class Server(ABC):
         pass
 
     def logout(self, user_name: str):
-        # TODO: Add proper logout for users
         print(f"{user_name} has logged out")
         log(self.getOnline())
         s = self.online.pop(user_name, None)

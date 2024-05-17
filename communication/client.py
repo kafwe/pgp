@@ -58,14 +58,13 @@ class Client:
         log(f"Initialised user {username} with certificate: {certificate}")
 
     def receive(self) -> bool:
-        compressed = chunk(self.server_socket)
-        if compressed is None:
+        encrypted = chunk(self.server_socket)
+        if encrypted is None:
             log("Received none. Assuming connection is closed.")
             return False
-        log(f"Received {len(compressed)} bytes")
+        log(f"Received {len(encrypted)} bytes")
         print("New message recieved!")
 
-        encrypted = zlib.decompress(compressed)
         decrypted = pgp.pgp_decrypt(encrypted, self.private_key)
         if isinstance(decrypted, Exception):
             print(
@@ -74,7 +73,8 @@ class Client:
             )
             log(str(decrypted))
             return True
-        _receive_image(decrypted, self.username)
+        decompressed = zlib.decompress(encrypted)
+        _receive_image(decompressed, self.username)
         return True
 
     # def request_certificate(self, peer: str):
@@ -104,16 +104,15 @@ class Client:
         file_type: str,
         caption: str,
     ):
-        # TODO add compression
         header = _create_header(self.username, file_type, caption)
-        encrypted = pgp.pgp_encrypt(header + image, peer_public_key)
+        compressed = zlib.compress(header + image)
+        encrypted = pgp.pgp_encrypt(compressed, peer_public_key)
 
         dest_bytes = peer_username.encode()
         dest_encrypted = pgp.pgp_encrypt(dest_bytes, self.server_public_key)
         dest_len = len(dest_encrypted).to_bytes(DEST_LENGTH_BYTES)
         # Send packet to reciever
-        compressed = zlib.compress(encrypted)
-        self.server_socket.send(dest_len + dest_encrypted + compressed)
+        self.server_socket.send(dest_len + dest_encrypted + encrypted)
         print("Message sent")
 
     def login(self) -> bool:
@@ -153,9 +152,6 @@ class Client:
 
 
 def _create_header(sender: str, file_type: str, caption: str) -> bytes:
-    # TODO: Error handling for caption that is too large
-    # TODO: Add MAC?
-    # TODO: Add signature
     encoded_caption = caption.encode()
     encoded_sender = sender.encode()
     encoded_file_type = file_type.encode()

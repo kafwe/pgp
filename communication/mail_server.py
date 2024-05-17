@@ -100,7 +100,6 @@ class MailServer(Server):
             if len(messages) == 0:
                 continue
             print(f"Sending {len(messages)} messages to {user}")
-            # TODO: Maybe require user to send acknowledgement
             for m in messages:
                 s.send(m)
             self.send_queue[user] = []
