@@ -35,7 +35,7 @@ def auto_request_certificate(
     ca_public_key: PublicKey, username: str, peer: str
 ) -> PublicKey | None:
     choice = input(
-        f"You do not have this {peer}'s public key saved. Request certificate from CA server? (y/n)\n"
+        f"You do not have {peer}'s public key saved. Request certificate from CA server? (y/n)\n"
     )
     if choice == "y":
         ca = connect_ca()

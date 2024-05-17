@@ -48,6 +48,8 @@ class CAServer(Server):
         log(f"username_len = {username_len}")
         data = data[1:]
         username = data[:username_len]
+        if username == "ca" or username == "":
+            return False.to_bytes()
         print(f"Handling application for {username}'s certificate")
         public_key = data[username_len:]
         try:

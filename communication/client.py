@@ -66,6 +66,7 @@ class Client:
         print("New message recieved!")
 
         decrypted = pgp.pgp_decrypt(encrypted, self.private_key)
+        print("Decrypting...")
         if isinstance(decrypted, Exception):
             print(
                 "ERROR: Unable to decrypt image. Peer may have incorrect public key."
@@ -73,7 +74,8 @@ class Client:
             )
             log(str(decrypted))
             return True
-        decompressed = zlib.decompress(encrypted)
+        print("Decompressing...")
+        decompressed = zlib.decompress(decrypted)
         _receive_image(decompressed, self.username)
         return True
 

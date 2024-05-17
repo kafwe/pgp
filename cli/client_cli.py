@@ -1,6 +1,5 @@
 import os
 import platform
-import socket
 import subprocess
 
 from authenticity.certificate import Certificate
@@ -28,7 +27,7 @@ from log import log
 
 
 def client_cli():
-    username = input("What is your username?\n")
+    username = input("\nWhat is your username?\n")
     keys = _load_keys(username)
     if keys is None:
         return
@@ -45,12 +44,13 @@ def client_cli():
     while not client.isShutdown:
         print(
             """
+
 Options:
     Send Image (s)
     Request Certificate (c)
-    List Contacts (l)
     View Images (i)
     Quit(q)
+
             """
         )
         choice = input()
@@ -63,7 +63,6 @@ Options:
         elif choice == "q":
             client.shutdown()
             return
-        # TODO add other options
 
 
 def _start(
@@ -73,11 +72,11 @@ def _start(
     server_public_key: PublicKey,
     ca_public_key: PublicKey,
 ) -> Client | None:
-    address = input("What is the mail server address? (default = localhost)\n")
+    address = input("\nWhat is the mail server address? (default = localhost)\n")
     if address == "":
         address = None
 
-    port = input("What is the mail server port? (default = 9999)\n")
+    port = input("\nWhat is the mail server port? (default = 9999)\n")
     if port == "":
         port = int(9999)
     try:
@@ -115,7 +114,7 @@ def _choice_send(client: Client):
             f"You have no images in your image folder. To send images, add images to images/{username}"
         )
         return
-    peer = input("Enter recepient username\n")
+    peer = input("\nEnter recepient username\n")
     try:
         pub_key = load_public_key(f"{username}/{peer}")
     except OSError:
@@ -141,11 +140,14 @@ def _choice_send(client: Client):
     if image is None:
         return
     caption = input("Enter a caption for the image: \n")
+    print("Sending...")
     client.send_image(peer, pub_key, image, file_type, caption)
 
 
 def _choice_request(client: Client):
-    peer = input("Enter peer's username\n")
+    peer = input("\nEnter peer's username\n")
+    if peer == "":
+        return
     ca = connect_ca()
     if ca is None:
         return None
@@ -161,7 +163,7 @@ def _choice_image(username: str):
         print(f"No images saved for user {username}")
         return
     files = sorted(os.listdir(dir))
-    print("Listing Images:")
+    print("\nListing Images:")
     print(_format_file_names(files))
     print("Type an Image ID to open it:")
     try:
@@ -171,6 +173,7 @@ def _choice_image(username: str):
         _open_in_default_app(f"{dir}/{file}")
     except Exception:
         print("Invalid ID")
+    print()
 
 
 def _format_file_names(files: list[str]) -> str:
