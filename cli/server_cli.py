@@ -1,11 +1,22 @@
+from cli.certificate_cli import load_certificate
+from cli.client_cli import auto_gen_keys
+from communication.server import Server
+from confidentiality.asymetric import PrivateKey, PublicKey, load_private_key
 from log import log
-from communication.server import Server, start as start_server
+from communication.mail_server import MailServer
+from communication.ca_server import CAServer
 
 
-def server_cli():
-    server = _start()
+def mail_server_cli():
+    server = _start(9999, "server")
     if server is None:
         return
+    assert isinstance(server, MailServer)
+    certificate = load_certificate(server.private_key, "server")
+    if certificate is None:
+        return
+
+    server.start_sending()
 
     while True:
         print(
@@ -27,20 +38,68 @@ Options:
             print(server.getMessageQueue())
 
 
-def _start() -> Server | None:
-    port: int = 9999
+def ca_server_cli():
+    server = _start(9998, "ca")
+    if server is None:
+        return
+    assert isinstance(server, CAServer)
+
+    while True:
+        print(
+            """
+Options:
+    List Online Users(l)
+    View Registered Users (v)
+    Quit (q)
+        """
+        )
+        choice = input()
+        if choice == "q":
+            log("Shutting down server")
+            server.shutdown()
+            break
+        if choice == "l":
+            print(server.getOnline())
+        if choice == "v":
+            # TODO: Get list of registerd users
+            pass
+
+
+def _start(default: int, type: str) -> Server | None:
+    private_key = _load_key(type)
+
+    port = default
     while True:
         try:
-            server = start_server(port)
+            if type == "server":
+                server = MailServer.start(port, private_key)
+            else:
+                server = CAServer.start(port, private_key)
             break
-        except Exception:
+        except Exception as e:
             try:
-                request = f"Unable to start server on port {port}. You are likely running a server on that port already. \
-                            \nEnter an alternate port (WARNING: clients must connect with the chosen port.):\n"
-                p = input(request)
+                log(str(e))
+                print(
+                    f"Unable to start server on port {port}."
+                    "You are likely running a server on that port already."
+                    "\nEnter an alternate port (WARNING: clients must connect with the chosen port.):\n"
+                )
+                p = input()
                 if p == "":
                     return None
                 port = int(p)
             except Exception:
                 print(f"{port} is not a valid port")
     return server
+
+
+def _load_key(username: str) -> PrivateKey | None:
+    try:
+        pri_key = load_private_key(f"{username}/private")
+    except Exception as e:
+        log(str(e))
+        res = auto_gen_keys(username)
+        if res is None:
+            return None
+        pri_key, _ = res
+    return pri_key

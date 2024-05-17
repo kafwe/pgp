@@ -1,7 +1,21 @@
+import os
 import platform
 import subprocess
-import os
-from communication.client import Client, start as start_client
+
+from authenticity.certificate import Certificate
+from cli.certificate_cli import (
+    auto_request_certificate,
+    connect_ca,
+    load_certificate,
+    request_certificate,
+)
+from communication.client import (
+    Client,
+)
+from communication.client import (
+    start as start_client,
+)
+from communication.constants import SUPPORTED_TYPES
 from confidentiality.asymetric import (
     PrivateKey,
     PublicKey,
@@ -13,38 +27,81 @@ from log import log
 
 
 def client_cli():
-    username = input("What is your username?\n")
-    private_key, server_public_key = _load_keys(username)
-    if private_key is None or server_public_key is None:
+    username = input("\nWhat is your username?\n")
+    keys = _load_keys(username)
+    if keys is None:
         return
-    client = _start(username, private_key, server_public_key)
+    private_key, server_public_key, ca_public_key = keys
+    certificate = load_certificate(private_key, username)
+    if certificate is None:
+        return
+    client = _start(
+        username, private_key, certificate, server_public_key, ca_public_key
+    )
     if client is None:
         return
 
     while not client.isShutdown:
-        # TODO: Add public_key exchange. Currently assuming all users have all public_keys
         print(
-            """
+            f"""
+{username}
 Options:
     Send Image (s)
     Request Certificate (c)
-    Provide Certificate(p)
-    List Contacts (l)
     View Images (i)
     Quit(q)
+
             """
         )
         choice = input()
         if choice == "s":
             _choice_send(client)
-        elif choice == "p":
+        elif choice == "c":
             _choice_request(client)
         elif choice == "i":
             _choice_image(username)
         elif choice == "q":
             client.shutdown()
             return
-        # TODO add other options
+
+
+def _start(
+    username: str,
+    private_key: PrivateKey,
+    certificate: Certificate,
+    server_public_key: PublicKey,
+    ca_public_key: PublicKey,
+) -> Client | None:
+    address = input("\nWhat is the mail server address? (default = localhost)\n")
+    if address == "":
+        address = None
+
+    port = input("\nWhat is the mail server port? (default = 9999)\n")
+    if port == "":
+        port = int(9999)
+    try:
+        port = int(port)
+    except Exception as e:
+        log(str(e))
+        print("Invalid port")
+        return
+    try:
+        client = start_client(
+            username,
+            private_key,
+            certificate,
+            server_public_key,
+            ca_public_key,
+            address,
+            port,
+        )
+    except Exception as e:
+        print(
+            "Unable to connect to server. Are you sure that's the right address and port? Maybe the server is offline"
+        )
+        log(str(e))
+        return None
+    return client
 
 
 def _choice_send(client: Client):
@@ -57,27 +114,47 @@ def _choice_send(client: Client):
             f"You have no images in your image folder. To send images, add images to images/{username}"
         )
         return
-    peer = input("Enter recepient username\n")
+    peer = input("\nEnter recepient username\n")
     try:
         pub_key = load_public_key(f"{username}/{peer}")
     except OSError:
-        _request_certificate(client, peer)
-        return
+        pub_key = auto_request_certificate(client.ca_public_key, username, peer)
+        if pub_key is None:
+            return
 
     image_path = input(
         f"Enter the path of the image file (relative to images/{username}/):\n"
     )
+    try:
+        file_type = image_path.split(".")[1]
+    except IndexError:
+        file_type = "None"
+
+    if file_type not in SUPPORTED_TYPES:
+        print(
+            f"Cannot send file of type {file_type}, must be in {",".join(SUPPORTED_TYPES)}"
+        )
+        return
+
     image = _load_image(f"images/{username}/{image_path}")
     if image is None:
         return
     caption = input("Enter a caption for the image: \n")
-    client.send_image(peer, pub_key, image, caption)
+    print("Sending...")
+    client.send_image(peer, pub_key, image, file_type, caption)
 
 
 def _choice_request(client: Client):
-    peer = input("Enter recepient username\n")
-    client.request_certificate(peer)
-    print(f"Certificate request sent to {peer}")
+    peer = input("\nEnter peer's username\n")
+    if peer == "":
+        return
+    ca = connect_ca()
+    if ca is None:
+        return None
+    cert = request_certificate(client.ca_public_key, ca, peer.encode())
+    if cert is None:
+        return None
+    cert.save_public_key(f"{client.username}/{peer}")
 
 
 def _choice_image(username: str):
@@ -86,7 +163,7 @@ def _choice_image(username: str):
         print(f"No images saved for user {username}")
         return
     files = sorted(os.listdir(dir))
-    print("Listing Images:")
+    print("\nListing Images:")
     print(_format_file_names(files))
     print("Type an Image ID to open it:")
     try:
@@ -96,6 +173,7 @@ def _choice_image(username: str):
         _open_in_default_app(f"{dir}/{file}")
     except Exception:
         print("Invalid ID")
+    print()
 
 
 def _format_file_names(files: list[str]) -> str:
@@ -107,6 +185,10 @@ def _format_file_names(files: list[str]) -> str:
         if len(split) != 4:
             continue
         split.insert(0, str(i))
+        caption = split.pop().split(".")[0]
+        if len(caption) > 30:
+            caption = caption[:30] + "..."
+        split.append(caption)
         formatted.append(split)
     max_widths: list[int] = [0] * 5
     for row in formatted:
@@ -136,41 +218,6 @@ def _open_in_default_app(path: str):
         subprocess.call(("xdg-open", path))
 
 
-def _start(
-    username: str, private_key: PrivateKey, server_public_key: PublicKey
-) -> Client | None:
-    address = input("What is the server address? (default = localhost)\n")
-    if address == "":
-        address = None
-
-    port = input("What is the server port? (default = 9999)\n")
-    if port == "":
-        port = int(9999)
-    try:
-        port = int(port)
-    except Exception as e:
-        log(str(e))
-        print("Invalid port")
-        return
-    try:
-        client = start_client(username, private_key, server_public_key, address, port)
-    except Exception as e:
-        print(
-            "Unable to connect to server. Are you sure that's the right address and port? Maybe the server is offline"
-        )
-        log(str(e))
-    return client
-
-
-def _request_certificate(client: Client, peer: str):
-    choice = input(
-        "You do not have this user's public key saved. Request certificate from server? (y/n)\n"
-    )
-    if choice == "y":
-        client.request_certificate(peer)
-        print("Request sent. Try sending again once you have received the key")
-
-
 def _load_image(image_path: str) -> bytes | None:
     try:
         with open(image_path, "rb") as file:
@@ -182,32 +229,45 @@ def _load_image(image_path: str) -> bytes | None:
     return image_data
 
 
-def _load_keys(username: str) -> tuple[PrivateKey | None, PublicKey | None]:
+def auto_gen_keys(username: str) -> tuple[PrivateKey, PublicKey] | None:
+    print(f"Unable to load keys for {username}. Would you like to generate some? (y/n)")
+    # TODO: add password protection
+    choice = input()
+    if choice == "y":
+        pri_key, pub_key = generate_key_pair()
+        dir = f"keys/{username}"
+        if not os.path.exists(dir):
+            os.makedirs(dir)
+        pri_key.save(f"{username}/private")
+        pub_key.save(f"{username}/public")
+        return pri_key, pub_key
+    else:
+        return None
+
+
+def _load_keys(
+    username: str,
+) -> tuple[PrivateKey, PublicKey, PublicKey] | None:
     try:
         pri_key = load_private_key(f"{username}/private")
     except Exception as e:
         log(str(e))
-        print(
-            f"Unable to load keys for {username}. Would you like to generate some? (y/n)"
-        )
-        choice = input()
-        if choice == "y":
-            pri_key, pub_key = generate_key_pair()
-            dir = f"keys/{username}"
-            if not os.path.exists(dir):
-                os.makedirs(dir)
-            pri_key.save(f"{username}/private")
-            pub_key.save(f"{username}/public")
-        else:
-            return None, None
+        res = auto_gen_keys(username)
+        if res is None:
+            return None
+        pri_key, _ = res
     try:
-        server_pub_key = load_public_key("server/public")
+        ca_pub_key = load_public_key("ca_public_key")
     except Exception as e:
         log(str(e))
-        print(
-            "Unable to load server's public key. Are you sure you have it saved as keys/server/public ?"
-        )
+        print("Unable to load CA's public key from keys/ca_public_key")
+        return None
+    try:
+        server_pub_key = load_public_key(f"{username}/server")
+    except Exception as e:
+        log(str(e))
+        server_pub_key = auto_request_certificate(ca_pub_key, username, "server")
+        if server_pub_key is None:
+            return None
 
-    server_pub_key = load_public_key("server/public")
-    log("Succesfully loaded private and public keys")
-    return pri_key, server_pub_key
+    return pri_key, server_pub_key, ca_pub_key
