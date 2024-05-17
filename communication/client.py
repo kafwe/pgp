@@ -4,6 +4,8 @@ import threading
 from datetime import datetime
 from typing import Callable
 
+from authenticity.certificate import Certificate
+from communication import ca_server
 import confidentiality.pgp as pgp
 from communication.chunk import chunk
 from communication.fake_certificate import CERTIFICATE_LENGTH_BYTES, split_certificate
@@ -88,24 +90,24 @@ class Client:
             key.save(path)
         return True
 
-    def request_certificate(self, peer: str):
-        dest = peer.encode()
-        log(f"Requesting certificate from {peer} = {dest}")
-        encrypted_dest = pgp.pgp_encrypt(dest, self.server_public_key)
-        dest_len = len(encrypted_dest).to_bytes(DEST_LENGTH_BYTES)
-        to_send = dest_len + encrypted_dest + CERT_REQUEST_CODE + self.username.encode()
-        log(f"Sending {len(to_send)} bytes")
-        self.server_socket.send(to_send)
+    # def request_certificate(self, peer: str):
+    #     dest = peer.encode()
+    #     log(f"Requesting certificate from {peer} = {dest}")
+    #     encrypted_dest = pgp.pgp_encrypt(dest, self.server_public_key)
+    #     dest_len = len(encrypted_dest).to_bytes(DEST_LENGTH_BYTES)
+    #     to_send = dest_len + encrypted_dest + CERT_REQUEST_CODE + self.username.encode()
+    #     log(f"Sending {len(to_send)} bytes")
+    #     self.server_socket.send(to_send)
 
-    def send_certificate(self, peer: str):
-        print(f"Sending certificate to {peer}")
-        dest = peer.encode()
-        encrypted_dest = pgp.pgp_encrypt(dest, self.server_public_key)
-        dest_len = len(encrypted_dest).to_bytes(DEST_LENGTH_BYTES)
-        log(f"Sending certificate. dest_len = {dest_len}")
-        self.server_socket.send(
-            dest_len + encrypted_dest + CERT_RESPONSE_CODE + self.certificate
-        )
+    # def send_certificate(self, peer: str):
+    #     print(f"Sending certificate to {peer}")
+    #     dest = peer.encode()
+    #     encrypted_dest = pgp.pgp_encrypt(dest, self.server_public_key)
+    #     dest_len = len(encrypted_dest).to_bytes(DEST_LENGTH_BYTES)
+    #     log(f"Sending certificate. dest_len = {dest_len}")
+    #     self.server_socket.send(
+    #         dest_len + encrypted_dest + CERT_RESPONSE_CODE + self.certificate
+    #     )
 
     def send_image(
         self, peer_username: str, peer_public_key: PublicKey, image: bytes, caption: str
@@ -251,3 +253,23 @@ def _receive_image(decrypted: bytes, username: str):
     print(f"Image caption: {caption}")
     _save_image(image, username, sender.decode(), caption)
     return True
+
+
+def apply_certificate(
+    ca: socket.socket, public_key: PublicKey, username: bytes
+) -> Certificate | None:
+    len_username = len(username).to_bytes(FROM_LENGTH_BYTES)
+    ca.send(ca_server.CERT_APPLY_CODE + len_username + username + public_key.to_bytes())
+    response = chunk(ca)
+    if response is None:
+        print("Unable to apply for certificate. Connection with CA closed.")
+        return None
+    valid = bool.from_bytes(response[:1])
+    if not valid:
+        print("Username is already registered on the CA. Please try another one.")
+        return None
+    return Certificate.deserialize(response[1:])
+
+
+def _request_certificate() -> Certificate:
+    pass

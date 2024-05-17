@@ -3,6 +3,7 @@ import threading
 from collections import defaultdict
 from os import urandom
 
+from communication.server import Server
 from log import log
 import confidentiality.pgp as pgp
 from communication.chunk import chunk
@@ -18,20 +19,11 @@ from confidentiality.asymetric import (
 #     ip: ststr
 
 
-class MailServer:
-    private_key: PrivateKey
-    online: dict[str, socket.socket]  # Username -> socket
-    # Username -> list of messages to receive
+class MailServer(Server):
     send_queue: dict[str, list[bytes]]
-    sock: socket.socket
-    isShutdown: bool = False
 
     def __init__(self, sock: socket.socket, private_key: PrivateKey):
-        log("Initialising _Server object with private_key: server/private")
-        self.private_key = private_key
-        self.sock = sock
-        log(f"Initalised sever socket: {sock}")
-        self.online = {}
+        super().__init__(sock, private_key)
         self.send_queue = defaultdict(list)
 
     def receive(self, c: socket.socket) -> bool:
@@ -74,18 +66,6 @@ class MailServer:
         log(f"Decrypted dest: {dest}/{dest.decode()}")
         return dest.decode(), data
 
-    def send(self):
-        users = list(self.online.items())
-        for user, s in users:
-            messages = self.send_queue.get(user, [])
-            if len(messages) == 0:
-                continue
-            print(f"Sending {len(messages)} messages to {user}")
-            # TODO: Maybe require user to send acknowledgement
-            for m in messages:
-                s.send(m)
-            self.send_queue[user] = []
-
     def login(self, user_socket: socket.socket) -> tuple[str, bool]:
         random = urandom(8)
         log(f"Login started. Generated random bytes: {int.from_bytes(random)}")
@@ -109,15 +89,17 @@ class MailServer:
         user_socket.send(True.to_bytes())
         return username, True
 
-    def logout(self, user_name: str):
-        # TODO: Add proper logout for users
-        print(f"{user_name} has logged out")
-        log(self.getOnline())
-        self.online.pop(user_name, None)
-
-    def getOnline(self) -> str:
-        users: list[str] = list(self.online.keys())
-        return f"{len(users)} users online:\n" + "\n".join(users)
+    def send(self):
+        users = list(self.online.items())
+        for user, s in users:
+            messages = self.send_queue.get(user, [])
+            if len(messages) == 0:
+                continue
+            print(f"Sending {len(messages)} messages to {user}")
+            # TODO: Maybe require user to send acknowledgement
+            for m in messages:
+                s.send(m)
+            self.send_queue[user] = []
 
     def getMessageQueue(self) -> str:
         s: str = "Message Queue:\n"
@@ -130,13 +112,11 @@ class MailServer:
         except Exception:
             return "ERROR: messages modified while reading. Please try again."
 
-    def shutdown(self):
-        # TODO: Save messages
-        self.isShutdown = True
-        self.sock.shutdown(socket.SHUT_RDWR)
-        sockets = list(self.online.values())
-        for s in sockets:
-            s.shutdown(socket.SHUT_RDWR)
+    def send_thread(self):
+        log("Server send thread active")
+        while not self.isShutdown:
+            self.send()
+        log("Shutting down server send thread")
 
 
 def _verify_login(random: bytes, received: bytes) -> tuple[bool, str]:
@@ -151,51 +131,3 @@ def _verify_login(random: bytes, received: bytes) -> tuple[bool, str]:
     log("Received signature")
     valid = pub_key.verify(random, signature)
     return valid, username
-
-
-def start(port=9999) -> MailServer:
-    print(f"Starting TCP server at ip: {socket.gethostname()} port: {port}")
-
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.bind((socket.gethostname(), port))
-    sock.listen()
-    log(f"Listening on socket: {sock}")
-
-    server = MailServer(sock, load_private_key("server/private"))
-    log("Loaded server private key")
-
-    threading.Thread(target=_connect_thread, args=(server,)).start()
-    threading.Thread(target=_send_thread, args=(server,)).start()
-
-    return server
-
-
-def _connect_thread(server: MailServer):
-    log("Server now accepting connections")
-    while not server.isShutdown:
-        try:
-            log("Waiting for client...")
-            client, address = server.sock.accept()
-        except OSError:
-            continue
-        print(f"New client connected: {address}")
-        threading.Thread(target=_receive_thread, args=(server, client, client)).start()
-    log("Connect thread has shut down")
-
-
-def _send_thread(server: MailServer):
-    log("Server send thread active")
-    while not server.isShutdown:
-        server.send()
-    log("Shutting down server send thread")
-
-
-def _receive_thread(server: MailServer, username: str, client: socket.socket):
-    log(f"Receive Thread for {username} active")
-    username, open = server.login(client)
-    open = True
-    while open and not server.isShutdown:
-        open = server.receive(client)
-    server.logout(username)
-    log(f"Continuing {username} thread. Open = {open} shutdown = {server.isShutdown}")
-    log(f"Shutting down thread for {username}")

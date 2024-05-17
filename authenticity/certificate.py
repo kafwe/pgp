@@ -73,6 +73,11 @@ class Certificate:
         except Exception as e:
             return False
 
+    def save(self, fileName):
+        data = self.serialize()
+        with open(f"keys/{fileName}", "wb") as file:
+            file.write(data)
+
 
 class CertificateAuthority:
     _instance = None
@@ -184,6 +189,11 @@ class CertificateAuthority:
                 )
             else:
                 return None
+
+
+def load_certificate(fileName: str) -> Certificate:
+    with open(f"keys/{fileName}", "rb") as file:
+        return Certificate.deserialize(file.read())
 
 
 # Example usage

@@ -1,7 +1,15 @@
 import platform
+import socket
 import subprocess
 import os
-from communication.client import Client, start as start_client
+from authenticity.certificate import Certificate, load_certificate
+from communication import ca_server
+from communication.client import (
+    FROM_LENGTH_BYTES,
+    Client,
+    apply_certificate,
+    start as start_client,
+)
 from confidentiality.asymetric import (
     PrivateKey,
     PublicKey,
@@ -17,6 +25,9 @@ def client_cli():
     private_key, server_public_key = _load_keys(username)
     if private_key is None or server_public_key is None:
         return
+    certificate = _load_certificate(private_key, username)
+    if certificate is None:
+        return
     client = _start(username, private_key, server_public_key)
     if client is None:
         return
@@ -28,7 +39,6 @@ def client_cli():
 Options:
     Send Image (s)
     Request Certificate (c)
-    Provide Certificate(p)
     List Contacts (l)
     View Images (i)
     Quit(q)
@@ -139,11 +149,11 @@ def _open_in_default_app(path: str):
 def _start(
     username: str, private_key: PrivateKey, server_public_key: PublicKey
 ) -> Client | None:
-    address = input("What is the server address? (default = localhost)\n")
+    address = input("What is the mail server address? (default = localhost)\n")
     if address == "":
         address = None
 
-    port = input("What is the server port? (default = 9999)\n")
+    port = input("What is the mail server port? (default = 9999)\n")
     if port == "":
         port = int(9999)
     try:
@@ -190,6 +200,7 @@ def _load_keys(username: str) -> tuple[PrivateKey | None, PublicKey | None]:
         print(
             f"Unable to load keys for {username}. Would you like to generate some? (y/n)"
         )
+        # TODO: add password protection
         choice = input()
         if choice == "y":
             pri_key, pub_key = generate_key_pair()
@@ -211,3 +222,55 @@ def _load_keys(username: str) -> tuple[PrivateKey | None, PublicKey | None]:
     server_pub_key = load_public_key("server/public")
     log("Succesfully loaded private and public keys")
     return pri_key, server_pub_key
+
+
+def _load_certificate(private_key: PrivateKey, username: str) -> Certificate | None:
+    try:
+        cert = load_certificate(f"{username}/certificate")
+        return cert
+    except Exception as e:
+        log(str(e))
+        print(
+            f"Unable to load Certificate for {username}. Would you like to request one from the CA Server?"
+        )
+        choice = input()
+        if choice == "y":
+            print("What")
+            ca = _connect_ca()
+            if ca is None:
+                return None
+            certificate = apply_certificate(
+                ca, private_key.get_public_key(), username.encode()
+            )
+            if certificate is None:
+                return
+            return certificate
+        else:
+            return None
+
+
+def _connect_ca() -> socket.socket | None:
+    address = input("What is the CA server address? (default = localhost)\n")
+    if address == "":
+        address = None
+
+    port = input("What is the CA server port? (default = 9999)\n")
+    if port == "":
+        port = int(9998)
+    try:
+        port = int(port)
+    except Exception as e:
+        log(str(e))
+        print("Invalid port")
+        return
+
+    if address == "" or address is None:
+        address = socket.gethostname()
+    try:
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.connect((address, port))
+    except Exception as e:
+        print(
+            "Unable to connect to server. Are you sure that's the right address and port? Maybe the server is offline"
+        )
+        log(str(e))
