@@ -29,20 +29,24 @@ class Certificate:
         self.expiration_time = self.creation_time + timedelta(days=ttl_days)
 
     def serialize(self) -> bytes:
-        return b"|".join(
-            [
-                self.username,
-                self.public_key,
-                self.signature,
-                self.creation_time.isoformat().encode(),
-                self.expiration_time.isoformat().encode(),
-            ]
+        data = (
+            self.username
+            + b"|cert|"
+            + self.public_key
+            + b"|cert|"
+            + self.signature
+            + b"|cert|"
+            + self.creation_time.isoformat().encode()
+            + b"|cert|"
+            + self.expiration_time.isoformat().encode()
         )
+        log(f"Serialized = {data}")
+        return data
 
     @classmethod
     def deserialize(cls, serialized_certificate: bytes) -> "Certificate":
-        parts = serialized_certificate.split(b"|")
         log(f"Deserializing certificate = {serialized_certificate}")
+        parts = serialized_certificate.split(b"|cert|")
         log(f"Parts = {parts}")
         username, public_key, signature, creation_time, expiration_time = parts
         return cls(
@@ -156,6 +160,7 @@ class CertificateAuthority:
         )
 
         self._store_certificate(certificate)
+        log(str(certificate))
         return certificate
 
     def _store_certificate(self, certificate: Certificate):
@@ -185,13 +190,19 @@ class CertificateAuthority:
                 FROM certificates
                 WHERE username = ?
             """,
-                (username,),
+                (username.decode(),),
             )
             row = cursor.fetchone()
             if row:
-                username, public_key, signature, creation_time, expiration_time = row
+                (
+                    returned_username,
+                    public_key,
+                    signature,
+                    creation_time,
+                    expiration_time,
+                ) = row
                 return Certificate(
-                    username,
+                    returned_username.encode(),
                     public_key,
                     signature,
                     datetime.fromisoformat(creation_time),

@@ -9,3 +9,5 @@ FROM_LENGTH_BYTES = 1  # Max size = 256 characters
 
 CERT_APPLY_CODE = False.to_bytes()
 CERT_REQUEST_CODE = True.to_bytes()
+
+SUPPORTED_TYPES = ["jpg", "jpeg", "png", "pdf", "svg"]

@@ -24,7 +24,9 @@ def load_certificate(private_key: PrivateKey, username: str) -> Certificate | No
             )
             if certificate is None:
                 return
+            print("Certificate Application succesful.")
             certificate.save(f"{username}/certificate")
+            return certificate
         else:
             return None
 

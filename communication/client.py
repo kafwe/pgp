@@ -14,6 +14,7 @@ from communication.constants import (
     CERTIFICATE_LENGTH_BYTES,
     DEST_LENGTH_BYTES,
     FROM_LENGTH_BYTES,
+    SUPPORTED_TYPES,
 )
 from confidentiality.asymetric import (
     PrivateKey,
@@ -48,6 +49,7 @@ class Client:
         self.private_key = private_key
         self.server_socket = server_socket
         self.server_public_key = server_public_key
+        self.ca_public_key = ca_public_key
         log(f"Initialised user {username} with server public key: {server_public_key}")
         self.username = username
         self.certificate = certificate
@@ -92,10 +94,15 @@ class Client:
     #     )
 
     def send_image(
-        self, peer_username: str, peer_public_key: PublicKey, image: bytes, caption: str
+        self,
+        peer_username: str,
+        peer_public_key: PublicKey,
+        image: bytes,
+        file_type: str,
+        caption: str,
     ):
         # TODO add compression
-        header = _create_header(self.username, caption)
+        header = _create_header(self.username, file_type, caption)
         encrypted = pgp.pgp_encrypt(header + image, peer_public_key)
 
         dest_bytes = peer_username.encode()
@@ -141,20 +148,29 @@ class Client:
         self.server_socket.shutdown(socket.SHUT_RDWR)
 
 
-def _create_header(sender: str, caption: str) -> bytes:
+def _create_header(sender: str, file_type: str, caption: str) -> bytes:
     # TODO: Error handling for caption that is too large
     # TODO: Add MAC?
-    # TODO: Add certificate
+    # TODO: Add signature
     encoded_caption = caption.encode()
     encoded_sender = sender.encode()
+    encoded_file_type = file_type.encode()
     caption_len = len(encoded_caption).to_bytes(CAPTION_LENGTH_BYTES)
     from_length = len(encoded_sender).to_bytes(FROM_LENGTH_BYTES)
+    file_type_len = len(encoded_file_type).to_bytes(1)
 
     log(f"From is of length: {from_length}")
-    return caption_len + from_length + encoded_caption + encoded_sender
+    return (
+        caption_len
+        + from_length
+        + file_type_len
+        + encoded_caption
+        + encoded_sender
+        + encoded_file_type
+    )
 
 
-def _split_header_message(data: bytes) -> tuple[int, int, bytes]:
+def _split_header_message(data: bytes) -> tuple[int, int, int, bytes]:
     # TODO: Add certificate
     # TODO: Error handling for caption that is too large
     # TODO: Add MAC?
@@ -166,20 +182,30 @@ def _split_header_message(data: bytes) -> tuple[int, int, bytes]:
     log(f"SEnder is of length {from_length}")
     data = data[FROM_LENGTH_BYTES:]
 
+    file_type_length = int.from_bytes(data[:1])
+    log(f"Sender is of length {from_length}")
+    data = data[1:]
+
     message = data
     log(f"Message data is of length {len(message)}")
 
-    return caption_length, from_length, message
+    return caption_length, from_length, file_type_length, message
 
 
-def _save_image(image_data: bytes, username: str, sender: str, caption: str):
+def _save_image(
+    image_data: bytes, username: str, sender: str, caption: str, file_type: str
+):
     dir = f"images/{username}"
     if not os.path.exists(dir):
         os.makedirs(dir)
     date_time = datetime.now().strftime("%Y-%m-%d--%H:%M:%S")
     file_name = f"{date_time}--{sender}--{caption}"
 
-    with open(f"images/{username}/{file_name}", "wb") as file:
+    if file_type not in SUPPORTED_TYPES:
+        print(
+            f"WARNING: Received unsupported file type: {file_type} from sender. Discarding."
+        )
+    with open(f"images/{username}/{file_name}.{file_type}", "wb") as file:
         file.write(image_data)
 
     print(f"Image saved as {file_name}")
@@ -221,15 +247,19 @@ def _receive_thread(client: Client):
 
 def _receive_image(decrypted: bytes, username: str):
     # TODO: Add signature
-    caption_length, from_length, message = _split_header_message(decrypted)
+    caption_length, from_length, file_type_length, message = _split_header_message(
+        decrypted
+    )
     log(f"From is of length: {from_length}")
 
     caption = message[:caption_length].decode()
     message = message[caption_length:]
     sender = message[:from_length]
-    image = message[from_length:]
+    message = message[from_length:]
+    file_type = message[:file_type_length]
+    image = message[file_type_length:]
 
     print(f"Received Image from: {sender}")
     print(f"Image caption: {caption}")
-    _save_image(image, username, sender.decode(), caption)
+    _save_image(image, username, sender.decode(), caption, file_type.decode())
     return True

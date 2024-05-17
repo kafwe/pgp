@@ -76,7 +76,9 @@ class MailServer(Server):
 
         user_socket.send(random + signed)
         try:
-            received = user_socket.recv(1024)
+            received = chunk(user_socket)
+            if received is None:
+                raise ConnectionResetError
         except ConnectionResetError:
             return "", False
 
@@ -135,7 +137,9 @@ def _verify_login(random: bytes, received: bytes) -> tuple[bool, str]:
     log(f"Received username: {cert.username.decode()}")
 
     signature = received[certificate_len:]
-    log("Received signature")
-    valid_certificate = cert.is_valid(load_public_key("keys/ca"))
+    log(f"Received signature of length {len(signature)}")
+    valid_certificate = cert.is_valid(load_public_key("ca_public_key"))
+    log(f"Invalid certificate for {cert.username.decode()}")
     valid_signature = public_key.verify(random, signature)
+    log(f"Invalid signature for {cert.username.decode()}")
     return valid_signature and valid_certificate, cert.username.decode()

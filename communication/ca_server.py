@@ -43,19 +43,26 @@ class CAServer(Server):
         return True
 
     def _handle_application(self, data: bytes) -> bytes:
-        username_len = int.from_bytes(data[1:])
+        log(f"Handling application for data: {data}")
+        username_len = int.from_bytes(data[:1])
+        log(f"username_len = {username_len}")
+        data = data[1:]
         username = data[:username_len]
+        print(f"Handling application for {username}'s certificate")
         public_key = data[username_len:]
         try:
-            self.ca.generate_certificate(username, public_key)
+            cert = self.ca.generate_certificate(username, public_key)
+            print(f"Succesfully generated key for {username}")
+            return True.to_bytes() + cert.serialize()
         except ValueError as e:
             print(e)
             log(str(e))
             return False.to_bytes()
-        return True.to_bytes()
 
     def _handle_request(self, peer: bytes) -> bytes:
+        print(f"Handling request for {peer}'s certificate")
         cert = self.ca.get_certificate(peer)
+        log(f"Got back cert: {cert}")
         if cert is None:
             return False.to_bytes()
         return True.to_bytes() + cert.serialize()
@@ -98,7 +105,7 @@ def request_certificate(
 def apply_for_certificate(
     ca: socket.socket, public_key: PublicKey, username: bytes
 ) -> Certificate | None:
-    len_username = len(username).to_bytes(FROM_LENGTH_BYTES)
+    len_username = len(username).to_bytes(1)
     print("Sending application to CA.")
     ca.send(CERT_APPLY_CODE + len_username + username + public_key.to_bytes())
     response = chunk(ca)

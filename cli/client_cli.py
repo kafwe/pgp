@@ -16,6 +16,7 @@ from communication.client import (
 from communication.client import (
     start as start_client,
 )
+from communication.constants import SUPPORTED_TYPES
 from confidentiality.asymetric import (
     PrivateKey,
     PublicKey,
@@ -126,11 +127,18 @@ def _choice_send(client: Client):
     image_path = input(
         f"Enter the path of the image file (relative to images/{username}/):\n"
     )
+    file_type = image_path.split(".")[1]
+    if file_type not in SUPPORTED_TYPES:
+        print(
+            f"Cannot send file of type {file_type}, must be in {",".join(SUPPORTED_TYPES)}"
+        )
+        return
+
     image = _load_image(f"images/{username}/{image_path}")
     if image is None:
         return
     caption = input("Enter a caption for the image: \n")
-    client.send_image(peer, pub_key, image, caption)
+    client.send_image(peer, pub_key, image, file_type, caption)
 
 
 def _choice_request(client: Client):

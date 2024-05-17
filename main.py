@@ -27,6 +27,7 @@ def main():
         os.remove("certificates.db")
         shutil.rmtree("keys")
         os.mkdir("keys")
+        gen("ca")
         return
 
     choice = input("Mail Server (1) CA Server (2) or Client (3)?\n")
@@ -39,7 +40,7 @@ def main():
         client_cli()
 
 
-def gen(username: str, password: str | None):
+def gen(username: str, password: str | None = None):
     private, public = generate_key_pair()
     dir = f"keys/{username}"
     if not os.path.exists(dir):
