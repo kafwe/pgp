@@ -1,5 +1,5 @@
 from log import log
-from communication.server import Server, start as start_server
+from communication.mail_server import MailServer, start as start_server
 
 
 def server_cli():
@@ -27,7 +27,7 @@ Options:
             print(server.getMessageQueue())
 
 
-def _start() -> Server | None:
+def _start() -> MailServer | None:
     port: int = 9999
     while True:
         try:

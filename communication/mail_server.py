@@ -18,7 +18,7 @@ from confidentiality.asymetric import (
 #     ip: ststr
 
 
-class Server:
+class MailServer:
     private_key: PrivateKey
     online: dict[str, socket.socket]  # Username -> socket
     # Username -> list of messages to receive
@@ -153,7 +153,7 @@ def _verify_login(random: bytes, received: bytes) -> tuple[bool, str]:
     return valid, username
 
 
-def start(port=9999) -> Server:
+def start(port=9999) -> MailServer:
     print(f"Starting TCP server at ip: {socket.gethostname()} port: {port}")
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -161,7 +161,7 @@ def start(port=9999) -> Server:
     sock.listen()
     log(f"Listening on socket: {sock}")
 
-    server = Server(sock, load_private_key("server/private"))
+    server = MailServer(sock, load_private_key("server/private"))
     log("Loaded server private key")
 
     threading.Thread(target=_connect_thread, args=(server,)).start()
@@ -170,7 +170,7 @@ def start(port=9999) -> Server:
     return server
 
 
-def _connect_thread(server: Server):
+def _connect_thread(server: MailServer):
     log("Server now accepting connections")
     while not server.isShutdown:
         try:
@@ -183,14 +183,14 @@ def _connect_thread(server: Server):
     log("Connect thread has shut down")
 
 
-def _send_thread(server: Server):
+def _send_thread(server: MailServer):
     log("Server send thread active")
     while not server.isShutdown:
         server.send()
     log("Shutting down server send thread")
 
 
-def _receive_thread(server: Server, username: str, client: socket.socket):
+def _receive_thread(server: MailServer, username: str, client: socket.socket):
     log(f"Receive Thread for {username} active")
     username, open = server.login(client)
     open = True
