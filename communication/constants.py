@@ -7,6 +7,8 @@ DEST_LENGTH_BYTES = 4  # Note: Destination is encrypted
 # Number of bytes dedicated to stating the sender's username length
 FROM_LENGTH_BYTES = 1  # Max size = 256 characters
 
+SIG_LENGTH_BYTES = 4  # Max size = 256 characters
+
 CERT_APPLY_CODE = False.to_bytes()
 CERT_REQUEST_CODE = True.to_bytes()
 

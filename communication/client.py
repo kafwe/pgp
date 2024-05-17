@@ -1,3 +1,4 @@
+import zlib
 import os
 import socket
 import threading
@@ -14,6 +15,7 @@ from communication.constants import (
     CERTIFICATE_LENGTH_BYTES,
     DEST_LENGTH_BYTES,
     FROM_LENGTH_BYTES,
+    SIG_LENGTH_BYTES,
     SUPPORTED_TYPES,
 )
 from confidentiality.asymetric import (
@@ -56,13 +58,14 @@ class Client:
         log(f"Initialised user {username} with certificate: {certificate}")
 
     def receive(self) -> bool:
-        encrypted = chunk(self.server_socket)
-        if encrypted is None:
+        compressed = chunk(self.server_socket)
+        if compressed is None:
             log("Received none. Assuming connection is closed.")
             return False
-        log(f"Received {len(encrypted)} bytes")
+        log(f"Received {len(compressed)} bytes")
         print("New message recieved!")
 
+        encrypted = zlib.decompress(compressed)
         decrypted = pgp.pgp_decrypt(encrypted, self.private_key)
         if isinstance(decrypted, Exception):
             print(
@@ -109,7 +112,8 @@ class Client:
         dest_encrypted = pgp.pgp_encrypt(dest_bytes, self.server_public_key)
         dest_len = len(dest_encrypted).to_bytes(DEST_LENGTH_BYTES)
         # Send packet to reciever
-        self.server_socket.send(dest_len + dest_encrypted + encrypted)
+        compressed = zlib.compress(encrypted)
+        self.server_socket.send(dest_len + dest_encrypted + compressed)
         print("Message sent")
 
     def login(self) -> bool:
@@ -199,6 +203,8 @@ def _save_image(
     if not os.path.exists(dir):
         os.makedirs(dir)
     date_time = datetime.now().strftime("%Y-%m-%d--%H:%M:%S")
+    if len(caption) > 30:
+        caption = caption[:30]
     file_name = f"{date_time}--{sender}--{caption}"
 
     if file_type not in SUPPORTED_TYPES:
@@ -245,8 +251,7 @@ def _receive_thread(client: Client):
         open = client.receive()
 
 
-def _receive_image(decrypted: bytes, username: str):
-    # TODO: Add signature
+def _receive_image(decrypted: bytes, username: str) -> bool:
     caption_length, from_length, file_type_length, message = _split_header_message(
         decrypted
     )

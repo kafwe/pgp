@@ -127,7 +127,11 @@ def _choice_send(client: Client):
     image_path = input(
         f"Enter the path of the image file (relative to images/{username}/):\n"
     )
-    file_type = image_path.split(".")[1]
+    try:
+        file_type = image_path.split(".")[1]
+    except IndexError:
+        file_type = "None"
+
     if file_type not in SUPPORTED_TYPES:
         print(
             f"Cannot send file of type {file_type}, must be in {",".join(SUPPORTED_TYPES)}"
@@ -179,6 +183,10 @@ def _format_file_names(files: list[str]) -> str:
         if len(split) != 4:
             continue
         split.insert(0, str(i))
+        caption = split.pop().split(".")[0]
+        if len(caption) > 30:
+            caption = caption[:30] + "..."
+        split.append(caption)
         formatted.append(split)
     max_widths: list[int] = [0] * 5
     for row in formatted:
