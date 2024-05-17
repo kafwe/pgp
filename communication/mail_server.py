@@ -11,7 +11,6 @@ from communication.client import DEST_LENGTH_BYTES
 from communication.fake_certificate import CERTIFICATE_LENGTH_BYTES, split_certificate
 from confidentiality.asymetric import (
     PrivateKey,
-    load_private_key,
 )
 
 # class User:
@@ -117,6 +116,9 @@ class MailServer(Server):
         while not self.isShutdown:
             self.send()
         log("Shutting down server send thread")
+
+    def start_sending(self):
+        threading.Thread(target=self.send_thread, args=()).start()
 
 
 def _verify_login(random: bytes, received: bytes) -> tuple[bool, str]:

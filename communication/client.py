@@ -25,10 +25,6 @@ DEST_LENGTH_BYTES = 4  # Note: Destination is encrypted
 # Number of bytes dedicated to stating the sender's username length
 FROM_LENGTH_BYTES = 1  # Max size = 256 characters
 
-IMAGE_CODE = (0).to_bytes(1)
-CERT_REQUEST_CODE = (1).to_bytes(1)
-CERT_RESPONSE_CODE = (2).to_bytes(1)
-
 
 class Client:
     private_key: PrivateKey
@@ -56,38 +52,22 @@ class Client:
         log(f"Initialised user {username} with certificate: {certificate}")
 
     def receive(self) -> bool:
-        data = chunk(self.server_socket)
-        if data is None:
+        encrypted = chunk(self.server_socket)
+        if encrypted is None:
             log("Received none. Assuming connection is closed.")
             return False
-        log(f"Received {len(data)} bytes")
+        log(f"Received {len(encrypted)} bytes")
         print("New message recieved!")
 
-        code = data[:1]
-        data = data[1:]
-        log(f"Receive message code: {code}")
-        if code == IMAGE_CODE:
-            encrypted = data
-            decrypted = pgp.pgp_decrypt(encrypted, self.private_key)
-            if isinstance(decrypted, Exception):
-                print(
-                    "ERROR: Unable to decrypt image. Peer may have incorrect public key."
-                    " It is recommended that you resend your certificate to them."
-                )
-                log(str(decrypted))
-                return True
-            _receive_image(decrypted, self.username)
-        elif code == CERT_REQUEST_CODE:
-            peer = data.decode()
-            print(f"Received certificate request from {peer}")
-            self.send_certificate(data.decode())
-        elif code == CERT_RESPONSE_CODE:
-            peer, key = split_certificate(data)
-            print(f"Received certificate from {peer}.")
-            # TODO Verify Certificate
-            path = f"{self.username}/{peer}"
-            print(f"Saving {peer}'s public key: keys/{path}")
-            key.save(path)
+        decrypted = pgp.pgp_decrypt(encrypted, self.private_key)
+        if isinstance(decrypted, Exception):
+            print(
+                "ERROR: Unable to decrypt image. Peer may have incorrect public key."
+                " It is recommended that you resend your certificate to them."
+            )
+            log(str(decrypted))
+            return True
+        _receive_image(decrypted, self.username)
         return True
 
     # def request_certificate(self, peer: str):
@@ -120,7 +100,7 @@ class Client:
         dest_encrypted = pgp.pgp_encrypt(dest_bytes, self.server_public_key)
         dest_len = len(dest_encrypted).to_bytes(DEST_LENGTH_BYTES)
         # Send packet to reciever
-        self.server_socket.send(dest_len + dest_encrypted + IMAGE_CODE + encrypted)
+        self.server_socket.send(dest_len + dest_encrypted + encrypted)
         print("Message sent")
 
     def login(self) -> bool:
@@ -271,5 +251,15 @@ def apply_certificate(
     return Certificate.deserialize(response[1:])
 
 
-def _request_certificate() -> Certificate:
-    pass
+def request_certificate(ca: socket.socket, peer: bytes) -> Certificate | None:
+    ca.send(ca_server.CERT_REQUEST_CODE + peer)
+    response = chunk(ca)
+    if response is None:
+        print("Unable to apply for certificate. Connection with CA closed.")
+        return None
+    exists = bool.from_bytes(response[:1])
+    if not exists:
+        print("User has not registered with the CA.")
+        return None
+
+    return Certificate.deserialize(response[1:])

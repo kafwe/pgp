@@ -3,11 +3,10 @@ import socket
 import subprocess
 import os
 from authenticity.certificate import Certificate, load_certificate
-from communication import ca_server
 from communication.client import (
-    FROM_LENGTH_BYTES,
     Client,
     apply_certificate,
+    request_certificate,
     start as start_client,
 )
 from confidentiality.asymetric import (
@@ -47,8 +46,8 @@ Options:
         choice = input()
         if choice == "s":
             _choice_send(client)
-        elif choice == "p":
-            _choice_request(client)
+        elif choice == "c":
+            _choice_request()
         elif choice == "i":
             _choice_image(username)
         elif choice == "q":
@@ -71,7 +70,7 @@ def _choice_send(client: Client):
     try:
         pub_key = load_public_key(f"{username}/{peer}")
     except OSError:
-        _request_certificate(client, peer)
+        _auto_auto_certificate(peer)
         return
 
     image_path = input(
@@ -84,9 +83,12 @@ def _choice_send(client: Client):
     client.send_image(peer, pub_key, image, caption)
 
 
-def _choice_request(client: Client):
+def _choice_request():
     peer = input("Enter recepient username\n")
-    client.request_certificate(peer)
+    ca = _connect_ca()
+    if ca is None:
+        return None
+    request_certificate(ca, peer.encode())
     print(f"Certificate request sent to {peer}")
 
 
@@ -172,12 +174,15 @@ def _start(
     return client
 
 
-def _request_certificate(client: Client, peer: str):
+def _auto_auto_certificate(peer: str):
     choice = input(
-        "You do not have this user's public key saved. Request certificate from server? (y/n)\n"
+        "You do not have this user's public key saved. Request certificate from CA server? (y/n)\n"
     )
     if choice == "y":
-        client.request_certificate(peer)
+        ca = _connect_ca()
+        if ca is None:
+            return None
+        request_certificate(ca, peer.encode())
         print("Request sent. Try sending again once you have received the key")
 
 
@@ -192,25 +197,31 @@ def _load_image(image_path: str) -> bytes | None:
     return image_data
 
 
+def auto_gen_keys(username: str) -> tuple[PrivateKey, PublicKey] | None:
+    print(f"Unable to load keys for {username}. Would you like to generate some? (y/n)")
+    # TODO: add password protection
+    choice = input()
+    if choice == "y":
+        pri_key, pub_key = generate_key_pair()
+        dir = f"keys/{username}"
+        if not os.path.exists(dir):
+            os.makedirs(dir)
+        pri_key.save(f"{username}/private")
+        pub_key.save(f"{username}/public")
+        return pri_key, pub_key
+    else:
+        return None
+
+
 def _load_keys(username: str) -> tuple[PrivateKey | None, PublicKey | None]:
     try:
         pri_key = load_private_key(f"{username}/private")
     except Exception as e:
         log(str(e))
-        print(
-            f"Unable to load keys for {username}. Would you like to generate some? (y/n)"
-        )
-        # TODO: add password protection
-        choice = input()
-        if choice == "y":
-            pri_key, pub_key = generate_key_pair()
-            dir = f"keys/{username}"
-            if not os.path.exists(dir):
-                os.makedirs(dir)
-            pri_key.save(f"{username}/private")
-            pub_key.save(f"{username}/public")
-        else:
+        res = auto_gen_keys(username)
+        if res is None:
             return None, None
+        pri_key, _ = res
     try:
         server_pub_key = load_public_key("server/public")
     except Exception as e:
@@ -231,11 +242,10 @@ def _load_certificate(private_key: PrivateKey, username: str) -> Certificate | N
     except Exception as e:
         log(str(e))
         print(
-            f"Unable to load Certificate for {username}. Would you like to request one from the CA Server?"
+            f"Unable to load Certificate for {username}. Would you like to request one from the CA Server? (y/n)"
         )
         choice = input()
         if choice == "y":
-            print("What")
             ca = _connect_ca()
             if ca is None:
                 return None
@@ -271,6 +281,6 @@ def _connect_ca() -> socket.socket | None:
         server.connect((address, port))
     except Exception as e:
         print(
-            "Unable to connect to server. Are you sure that's the right address and port? Maybe the server is offline"
+            "Unable to connect to CA server. Are you sure that's the right address and port? Maybe the server is offline"
         )
         log(str(e))

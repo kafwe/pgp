@@ -1,7 +1,7 @@
 import sys
 import threading
 from cli.client_cli import client_cli
-from cli.server_cli import server_cli
+from cli.server_cli import mail_server_cli, ca_server_cli
 import log
 from confidentiality.asymetric import (
     generate_key_pair,
@@ -26,14 +26,14 @@ def main():
         log.log(f"Generated public and private keys for: {username}")
         return
 
-    choice = input("Server (1) or Client (2)?\n")
+    choice = input("Mail Server (1) CA Server (2) or Client (3)?\n")
 
     if choice == "1":
-        server_cli()
+        mail_server_cli()
     elif choice == "2":
+        ca_server_cli()
+    elif choice == "3":
         client_cli()
-    else:
-        return
 
 
 if __name__ == "__main__":

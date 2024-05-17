@@ -1,9 +1,7 @@
 from abc import ABC, abstractmethod
-from collections import defaultdict
 import socket
 import threading
 
-from communication.mail_server import MailServer
 from confidentiality.asymetric import PrivateKey, load_private_key
 from log import log
 
@@ -48,10 +46,7 @@ class Server(ABC):
             s.shutdown(socket.SHUT_RDWR)
 
     @classmethod
-    def start(
-        cls,
-        port=9999,
-    ) -> "Server":
+    def start(cls, port, private_key) -> "Server":
         print(f"Starting TCP server at ip: {socket.gethostname()} port: {port}")
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -59,12 +54,10 @@ class Server(ABC):
         sock.listen()
         log(f"Listening on socket: {sock}")
 
-        server = cls(sock, load_private_key("ca/private"))
+        server = cls(sock, private_key)
         log("Loaded server private key")
 
         threading.Thread(target=_connect_thread, args=(server,)).start()
-        if isinstance(server, MailServer):
-            threading.Thread(target=server.send_thread, args=(server,)).start()
 
         return server
 
