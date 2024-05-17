@@ -19,12 +19,7 @@ Run `python3 test.py` or `python3 test.py --debug`
 
 # Demonstration Videos
 ## Primary Demonstration
-<video src="./Demo.mp4" controls>
-  Please view the Demo.mp4
-</video>
+Please view the Demo.mp4
 
 ## Large Image Demonstration 
-![](Demo_Large_Images.mp4)
-<video src="./Demo_Large_Images.mp4" controls>
-  Please view the Demo_Large_Images.mp4
-</video>
+Please view the Demo_Large_Images.mp4
