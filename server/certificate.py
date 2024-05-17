@@ -30,9 +30,9 @@ class Certificate:
         print(f"Creation Time: {self.creation_time}")
         print(f"Expiration Time: {self.expiration_time}")
 
-    def is_valid(self, ca_public_key: PublicKey, client_public_key: PublicKey) -> bool:
+    def is_valid(self, ca_public_key: PublicKey) -> bool:
         if datetime.now() > self.expiration_time:
-            raise ValueError("Certificate has expired.")
+            raise CertificateExpiredError("Certificate has expired.")
         
         data_to_verify = b''.join([self.username, self.public_key, self.creation_time.isoformat().encode(), self.expiration_time.isoformat().encode()])
         try:
@@ -72,16 +72,18 @@ class CertificateAuthority:
             """)
             conn.commit()
 
-    def generate_certificate(self, username: bytes, user_public_key: PublicKey, ttl_days: int = 365) -> Certificate:
-        # check if username is in the database first and return an error if it is
+    def generate_certificate(self, username: bytes, user_public_key: bytes, ttl_days: int = 365) -> Certificate:
+        if b'|' in username:
+            raise ValueError("Username cannot contain the '|' character.")
+        
         if username.decode() in [row[0] for row in sqlite3.connect(self.db_path).cursor().execute("SELECT username FROM certificates").fetchall()]:
             raise ValueError("Username already exists in the database.")
-
+        
         creation_time = datetime.now()
         expiration_time = creation_time + timedelta(days=ttl_days)
-        data_to_sign = b''.join([username.decode(), user_public_key, creation_time.isoformat().encode(), expiration_time.isoformat().encode()])
+        data_to_sign = b''.join([username, user_public_key, creation_time.isoformat().encode(), expiration_time.isoformat().encode()])
         signature = self.private_key.sign(data_to_sign)
-        certificate = Certificate(username, user_public_key, signature, creation_time, ttl_days)
+        certificate = Certificate(username.decode(), user_public_key, signature, creation_time, ttl_days)
         
         self._store_certificate(certificate)
         return certificate
@@ -92,7 +94,7 @@ class CertificateAuthority:
             cursor.execute("""
                 INSERT INTO certificates (username, public_key, signature, creation_time, expiration_time)
                 VALUES (?, ?, ?, ?, ?)
-            """, (certificate.username, certificate.public_key, certificate.signature, certificate.creation_time.isoformat().encode(), certificate.expiration_time.isoformat().encode()))
+            """, (certificate.username.decode(), certificate.public_key, certificate.signature, certificate.creation_time.isoformat(), certificate.expiration_time.isoformat()))
             conn.commit()
 
     def get_certificate(self, username: bytes) -> Certificate:
