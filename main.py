@@ -27,6 +27,7 @@ def main():
         os.remove("certificates.db")
         shutil.rmtree("keys")
         os.mkdir("keys")
+        return
 
     choice = input("Mail Server (1) CA Server (2) or Client (3)?\n")
 
