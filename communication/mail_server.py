@@ -1,3 +1,4 @@
+import math
 import socket
 import threading
 from collections import defaultdict
@@ -10,6 +11,8 @@ from log import log
 import confidentiality.pgp as pgp
 from communication.chunk import chunk
 from communication.client import DEST_LENGTH_BYTES
+from communication.constants import NUM_CHUNKS_LEN_BYTES
+
 from confidentiality.asymetric import (
     PrivateKey,
     load_public_key,
@@ -29,7 +32,9 @@ class MailServer(Server):
         self.send_queue = defaultdict(list)
 
     def receive(self, c: socket.socket) -> bool:
-        data = chunk(c)
+        num_chunks_len = int.from_bytes(c.recv(NUM_CHUNKS_LEN_BYTES))
+        num_chunks = c.recv(num_chunks_len)
+        data = chunk(c, int.from_bytes(num_chunks))
         if data is None:
             log("Received none. Assuming connection is closed.")
             return False
@@ -101,6 +106,9 @@ class MailServer(Server):
                 continue
             print(f"Sending {len(messages)} messages to {user}")
             for m in messages:
+                num_chunks = math.ceil(len(m) / 1024).to_bytes(128)
+                s.send(len(num_chunks).to_bytes(NUM_CHUNKS_LEN_BYTES))
+                s.send(num_chunks)
                 s.send(m)
             self.send_queue[user] = []
 

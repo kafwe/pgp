@@ -1,3 +1,4 @@
+import math
 import zlib
 import os
 import socket
@@ -15,6 +16,7 @@ from communication.constants import (
     CERTIFICATE_LENGTH_BYTES,
     DEST_LENGTH_BYTES,
     FROM_LENGTH_BYTES,
+    NUM_CHUNKS_LEN_BYTES,
     SIG_LENGTH_BYTES,
     SUPPORTED_TYPES,
 )
@@ -58,7 +60,9 @@ class Client:
         log(f"Initialised user {username} with certificate: {certificate}")
 
     def receive(self) -> bool:
-        encrypted = chunk(self.server_socket)
+        num_chunks_len = int.from_bytes(self.server_socket.recv(NUM_CHUNKS_LEN_BYTES))
+        num_chunks = self.server_socket.recv(num_chunks_len)
+        encrypted = chunk(self.server_socket, int.from_bytes(num_chunks))
         if encrypted is None:
             log("Received none. Assuming connection is closed.")
             return False
@@ -114,7 +118,11 @@ class Client:
         dest_encrypted = pgp.pgp_encrypt(dest_bytes, self.server_public_key)
         dest_len = len(dest_encrypted).to_bytes(DEST_LENGTH_BYTES)
         # Send packet to reciever
-        self.server_socket.send(dest_len + dest_encrypted + encrypted)
+        to_send = dest_len + dest_encrypted + encrypted
+        num_chunks = math.ceil(len(to_send) / 1024).to_bytes(128)
+        self.server_socket.send(len(num_chunks).to_bytes(NUM_CHUNKS_LEN_BYTES))
+        self.server_socket.send(num_chunks)
+        self.server_socket.send(to_send)
         print("Message sent")
 
     def login(self) -> bool:

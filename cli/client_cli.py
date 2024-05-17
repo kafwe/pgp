@@ -43,8 +43,8 @@ def client_cli():
 
     while not client.isShutdown:
         print(
-            """
-
+            f"""
+{username}
 Options:
     Send Image (s)
     Request Certificate (c)

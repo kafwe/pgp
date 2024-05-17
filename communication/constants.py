@@ -13,3 +13,5 @@ CERT_APPLY_CODE = False.to_bytes()
 CERT_REQUEST_CODE = True.to_bytes()
 
 SUPPORTED_TYPES = ["jpg", "jpeg", "png", "pdf", "svg"]
+
+NUM_CHUNKS_LEN_BYTES = 8
