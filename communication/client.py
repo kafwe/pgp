@@ -2,7 +2,6 @@ import os
 import socket
 import threading
 from datetime import datetime
-from typing import Callable
 
 import confidentiality.pgp as pgp
 from communication.chunk import chunk
@@ -10,8 +9,6 @@ from communication.fake_certificate import CERTIFICATE_LENGTH_BYTES, split_certi
 from confidentiality.asymetric import (
     PrivateKey,
     PublicKey,
-    load_private_key,
-    load_public_key,
     load_public_key_bytes,
 )
 from log import log
@@ -78,6 +75,7 @@ class Client:
         elif code == CERT_REQUEST_CODE:
             peer = data.decode()
             print(f"Received certificate request from {peer}")
+            # TODO add option to reject.
             self.send_certificate(data.decode())
         elif code == CERT_RESPONSE_CODE:
             peer, key = split_certificate(data)
