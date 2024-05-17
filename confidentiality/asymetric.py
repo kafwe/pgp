@@ -21,13 +21,16 @@ class PublicKey:
             return False
 
     def save(self, fileName: str = "public_keys"):
+        data = self.to_bytes()
+        with open(f"keys/{fileName}", "wb") as file:
+            file.write(data)
+
+    def to_bytes(self) -> bytes:
         data = self.key.public_bytes(
             srlz.Encoding.PEM,
             srlz.PublicFormat.SubjectPublicKeyInfo,
         )
-        with open(f"keys/{fileName}", "wb") as file:
-            file.write(data)
-    
+        return data
 
 
 class PrivateKey:
