@@ -1,3 +1,4 @@
+from cli.certificate_cli import load_certificate
 from cli.client_cli import auto_gen_keys
 from communication.server import Server
 from confidentiality.asymetric import PrivateKey, PublicKey, load_private_key
@@ -11,6 +12,10 @@ def mail_server_cli():
     if server is None:
         return
     assert isinstance(server, MailServer)
+    certificate = load_certificate(server.private_key, "server")
+    if certificate is None:
+        return
+
     server.start_sending()
 
     while True:

@@ -1,12 +1,19 @@
+import os
 import platform
 import socket
 import subprocess
-import os
-from authenticity.certificate import Certificate, load_certificate
+
+from authenticity.certificate import Certificate
+from cli.certificate_cli import (
+    auto_request_certificate,
+    connect_ca,
+    load_certificate,
+    request_certificate,
+)
 from communication.client import (
     Client,
-    apply_certificate,
-    request_certificate,
+)
+from communication.client import (
     start as start_client,
 )
 from confidentiality.asymetric import (
@@ -21,13 +28,16 @@ from log import log
 
 def client_cli():
     username = input("What is your username?\n")
-    private_key, server_public_key = _load_keys(username)
-    if private_key is None or server_public_key is None:
+    keys = _load_keys(username)
+    if keys is None:
         return
-    certificate = _load_certificate(private_key, username)
+    private_key, server_public_key, ca_public_key = keys
+    certificate = load_certificate(private_key, username)
     if certificate is None:
         return
-    client = _start(username, private_key, server_public_key)
+    client = _start(
+        username, private_key, certificate, server_public_key, ca_public_key
+    )
     if client is None:
         return
 
@@ -47,13 +57,52 @@ Options:
         if choice == "s":
             _choice_send(client)
         elif choice == "c":
-            _choice_request()
+            _choice_request(client)
         elif choice == "i":
             _choice_image(username)
         elif choice == "q":
             client.shutdown()
             return
         # TODO add other options
+
+
+def _start(
+    username: str,
+    private_key: PrivateKey,
+    certificate: Certificate,
+    server_public_key: PublicKey,
+    ca_public_key: PublicKey,
+) -> Client | None:
+    address = input("What is the mail server address? (default = localhost)\n")
+    if address == "":
+        address = None
+
+    port = input("What is the mail server port? (default = 9999)\n")
+    if port == "":
+        port = int(9999)
+    try:
+        port = int(port)
+    except Exception as e:
+        log(str(e))
+        print("Invalid port")
+        return
+    try:
+        client = start_client(
+            username,
+            private_key,
+            certificate,
+            server_public_key,
+            ca_public_key,
+            address,
+            port,
+        )
+    except Exception as e:
+        print(
+            "Unable to connect to server. Are you sure that's the right address and port? Maybe the server is offline"
+        )
+        log(str(e))
+        return None
+    return client
 
 
 def _choice_send(client: Client):
@@ -70,8 +119,9 @@ def _choice_send(client: Client):
     try:
         pub_key = load_public_key(f"{username}/{peer}")
     except OSError:
-        _auto_auto_certificate(peer)
-        return
+        pub_key = auto_request_certificate(client.ca_public_key, username, peer)
+        if pub_key is None:
+            return
 
     image_path = input(
         f"Enter the path of the image file (relative to images/{username}/):\n"
@@ -83,13 +133,15 @@ def _choice_send(client: Client):
     client.send_image(peer, pub_key, image, caption)
 
 
-def _choice_request():
-    peer = input("Enter recepient username\n")
-    ca = _connect_ca()
+def _choice_request(client: Client):
+    peer = input("Enter peer's username\n")
+    ca = connect_ca()
     if ca is None:
         return None
-    request_certificate(ca, peer.encode())
-    print(f"Certificate request sent to {peer}")
+    cert = request_certificate(client.ca_public_key, ca, peer.encode())
+    if cert is None:
+        return None
+    cert.save_public_key(f"{client.username}/{peer}")
 
 
 def _choice_image(username: str):
@@ -148,44 +200,6 @@ def _open_in_default_app(path: str):
         subprocess.call(("xdg-open", path))
 
 
-def _start(
-    username: str, private_key: PrivateKey, server_public_key: PublicKey
-) -> Client | None:
-    address = input("What is the mail server address? (default = localhost)\n")
-    if address == "":
-        address = None
-
-    port = input("What is the mail server port? (default = 9999)\n")
-    if port == "":
-        port = int(9999)
-    try:
-        port = int(port)
-    except Exception as e:
-        log(str(e))
-        print("Invalid port")
-        return
-    try:
-        client = start_client(username, private_key, server_public_key, address, port)
-    except Exception as e:
-        print(
-            "Unable to connect to server. Are you sure that's the right address and port? Maybe the server is offline"
-        )
-        log(str(e))
-    return client
-
-
-def _auto_auto_certificate(peer: str):
-    choice = input(
-        "You do not have this user's public key saved. Request certificate from CA server? (y/n)\n"
-    )
-    if choice == "y":
-        ca = _connect_ca()
-        if ca is None:
-            return None
-        request_certificate(ca, peer.encode())
-        print("Request sent. Try sending again once you have received the key")
-
-
 def _load_image(image_path: str) -> bytes | None:
     try:
         with open(image_path, "rb") as file:
@@ -213,74 +227,29 @@ def auto_gen_keys(username: str) -> tuple[PrivateKey, PublicKey] | None:
         return None
 
 
-def _load_keys(username: str) -> tuple[PrivateKey | None, PublicKey | None]:
+def _load_keys(
+    username: str,
+) -> tuple[PrivateKey, PublicKey, PublicKey] | None:
     try:
         pri_key = load_private_key(f"{username}/private")
     except Exception as e:
         log(str(e))
         res = auto_gen_keys(username)
         if res is None:
-            return None, None
+            return None
         pri_key, _ = res
     try:
-        server_pub_key = load_public_key("server/public")
+        ca_pub_key = load_public_key("ca_public_key")
     except Exception as e:
         log(str(e))
-        print(
-            "Unable to load server's public key. Are you sure you have it saved as keys/server/public ?"
-        )
-
-    server_pub_key = load_public_key("server/public")
-    log("Succesfully loaded private and public keys")
-    return pri_key, server_pub_key
-
-
-def _load_certificate(private_key: PrivateKey, username: str) -> Certificate | None:
+        print("Unable to load CA's public key from keys/ca_public_key")
+        return None
     try:
-        cert = load_certificate(f"{username}/certificate")
-        return cert
+        server_pub_key = load_public_key(f"{username}/server")
     except Exception as e:
         log(str(e))
-        print(
-            f"Unable to load Certificate for {username}. Would you like to request one from the CA Server? (y/n)"
-        )
-        choice = input()
-        if choice == "y":
-            ca = _connect_ca()
-            if ca is None:
-                return None
-            certificate = apply_certificate(
-                ca, private_key.get_public_key(), username.encode()
-            )
-            if certificate is None:
-                return
-            return certificate
-        else:
+        server_pub_key = auto_request_certificate(ca_pub_key, username, "server")
+        if server_pub_key is None:
             return None
 
-
-def _connect_ca() -> socket.socket | None:
-    address = input("What is the CA server address? (default = localhost)\n")
-    if address == "":
-        address = None
-
-    port = input("What is the CA server port? (default = 9999)\n")
-    if port == "":
-        port = int(9998)
-    try:
-        port = int(port)
-    except Exception as e:
-        log(str(e))
-        print("Invalid port")
-        return
-
-    if address == "" or address is None:
-        address = socket.gethostname()
-    try:
-        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server.connect((address, port))
-    except Exception as e:
-        print(
-            "Unable to connect to CA server. Are you sure that's the right address and port? Maybe the server is offline"
-        )
-        log(str(e))
+    return pri_key, server_pub_key, ca_pub_key

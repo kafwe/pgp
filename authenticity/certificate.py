@@ -1,6 +1,12 @@
+from log import log
 import sqlite3
 from datetime import datetime, timedelta
-from confidentiality.asymetric import PrivateKey, PublicKey, generate_key_pair
+from confidentiality.asymetric import (
+    PrivateKey,
+    PublicKey,
+    generate_key_pair,
+    public_key_from_bytes,
+)
 
 
 class CertificateExpiredError(Exception):
@@ -36,6 +42,8 @@ class Certificate:
     @classmethod
     def deserialize(cls, serialized_certificate: bytes) -> "Certificate":
         parts = serialized_certificate.split(b"|")
+        log(f"Deserializing certificate = {serialized_certificate}")
+        log(f"Parts = {parts}")
         username, public_key, signature, creation_time, expiration_time = parts
         return cls(
             username,
@@ -77,6 +85,11 @@ class Certificate:
         data = self.serialize()
         with open(f"keys/{fileName}", "wb") as file:
             file.write(data)
+
+    def save_public_key(self, fileName: str):
+        pub_key = public_key_from_bytes(self.public_key)
+        print(f"Saved Public Key to keys/{fileName}")
+        pub_key.save(fileName)
 
 
 class CertificateAuthority:
@@ -194,17 +207,3 @@ class CertificateAuthority:
 def load_certificate(fileName: str) -> Certificate:
     with open(f"keys/{fileName}", "rb") as file:
         return Certificate.deserialize(file.read())
-
-
-# Example usage
-if __name__ == "__main__":
-    private_key, _ = generate_key_pair()
-    ca = CertificateAuthority(private_key)
-    _, user_public_key = generate_key_pair()
-
-    certificate = ca.generate_certificate(b"example_user", user_public_key)
-    serialized_certificate = certificate.serialize()
-    deserialized_certificate = Certificate.deserialize(serialized_certificate)
-
-    deserialized_certificate.print()
-    print("Certificate valid:", deserialized_certificate.is_valid(ca.public_key))

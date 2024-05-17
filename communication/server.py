@@ -20,7 +20,7 @@ class Server(ABC):
         self.online = {}
 
     @abstractmethod
-    def receive(self, c: socket.socket):
+    def receive(self, c: socket.socket) -> bool:
         pass
 
     @abstractmethod
@@ -31,7 +31,9 @@ class Server(ABC):
         # TODO: Add proper logout for users
         print(f"{user_name} has logged out")
         log(self.getOnline())
-        self.online.pop(user_name, None)
+        s = self.online.pop(user_name, None)
+        if s is not None:
+            s.shutdown(socket.SHUT_RDWR)
 
     def getOnline(self) -> str:
         users: list[str] = list(self.online.keys())

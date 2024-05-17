@@ -3,14 +3,17 @@ import threading
 from collections import defaultdict
 from os import urandom
 
+from authenticity.certificate import Certificate
+from communication.constants import CERTIFICATE_LENGTH_BYTES
 from communication.server import Server
 from log import log
 import confidentiality.pgp as pgp
 from communication.chunk import chunk
 from communication.client import DEST_LENGTH_BYTES
-from communication.fake_certificate import CERTIFICATE_LENGTH_BYTES, split_certificate
 from confidentiality.asymetric import (
     PrivateKey,
+    load_public_key,
+    public_key_from_bytes,
 )
 
 # class User:
@@ -126,10 +129,13 @@ def _verify_login(random: bytes, received: bytes) -> tuple[bool, str]:
     certificate_len = int.from_bytes(received[:CERTIFICATE_LENGTH_BYTES])
     len(f"Verifying login with certificate of length: {certificate_len}")
     received = received[CERTIFICATE_LENGTH_BYTES:]
-    username, pub_key = split_certificate(received[:certificate_len])
-    log(f"Received username: {username}")
+    cert = Certificate.deserialize(received[:certificate_len])
+    log("received certificate")
+    public_key = public_key_from_bytes(cert.public_key)
+    log(f"Received username: {cert.username.decode()}")
 
     signature = received[certificate_len:]
     log("Received signature")
-    valid = pub_key.verify(random, signature)
-    return valid, username
+    valid_certificate = cert.is_valid(load_public_key("keys/ca"))
+    valid_signature = public_key.verify(random, signature)
+    return valid_signature and valid_certificate, cert.username.decode()

@@ -1,3 +1,0 @@
-- This demo is for testing the encryption algorithms by simulating a connection
-- Each user's messages are stored in files `name_message`
-- The keys are stored in `name_private_key` and `name_public_key`

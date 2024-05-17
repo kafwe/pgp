@@ -4,34 +4,35 @@ import threading
 from datetime import datetime
 from typing import Callable
 
-from authenticity.certificate import Certificate
+from authenticity.certificate import Certificate, load_certificate
 from communication import ca_server
 import confidentiality.pgp as pgp
 from communication.chunk import chunk
-from communication.fake_certificate import CERTIFICATE_LENGTH_BYTES, split_certificate
+from communication.constants import (
+    CAPTION_LENGTH_BYTES,
+    CERT_REQUEST_CODE,
+    CERTIFICATE_LENGTH_BYTES,
+    DEST_LENGTH_BYTES,
+    FROM_LENGTH_BYTES,
+)
 from confidentiality.asymetric import (
     PrivateKey,
     PublicKey,
     load_private_key,
     load_public_key,
     load_public_key_bytes,
+    public_key_from_bytes,
 )
 from log import log
-
-# Number of bytes dedicated to stating the caption's length
-CAPTION_LENGTH_BYTES = 2  # Max size = ~65536 characters
-# Number of bytes dedicated to stating the destination username length
-DEST_LENGTH_BYTES = 4  # Note: Destination is encrypted
-# Number of bytes dedicated to stating the sender's username length
-FROM_LENGTH_BYTES = 1  # Max size = 256 characters
 
 
 class Client:
     private_key: PrivateKey
     server_socket: socket.socket
     server_public_key: PublicKey
+    ca_public_key: PublicKey
     username: str
-    certificate: bytes
+    certificate: Certificate
     isShutdown: bool
 
     def __init__(
@@ -39,8 +40,9 @@ class Client:
         server_socket: socket.socket,
         private_key: PrivateKey,
         server_public_key: PublicKey,
+        ca_public_key: PublicKey,
         username: str,
-        certificate: bytes,
+        certificate: Certificate,
     ):
         self.isShutdown = False
         self.private_key = private_key
@@ -121,9 +123,10 @@ class Client:
 
         my_sig = self.private_key.sign(random)
         log(f"My signature (signed the random) is of length: {len(my_sig)}")
-        cert_len = int.to_bytes(len(self.certificate), CERTIFICATE_LENGTH_BYTES)
+        cert = self.certificate.serialize()
+        cert_len = int.to_bytes(len(cert), CERTIFICATE_LENGTH_BYTES)
         log(f"Sending certificate of length: {cert_len}")
-        msg = cert_len + self.certificate + my_sig
+        msg = cert_len + cert + my_sig
         self.server_socket.send(msg)
         log("Sending login request to server")
 
@@ -185,7 +188,9 @@ def _save_image(image_data: bytes, username: str, sender: str, caption: str):
 def start(
     username: str,
     private_key: PrivateKey,
+    certificate: Certificate,
     server_public_key: PublicKey,
+    ca_public_key: PublicKey,
     server_address: str | None,
     server_port=9999,
 ) -> Client:
@@ -196,15 +201,9 @@ def start(
         server_address = socket.gethostname()
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.connect((server_address, server_port))
-    user = username.encode()
-    user_len = len(user).to_bytes(1)
 
     client = Client(
-        server,
-        private_key,
-        server_public_key,
-        username,
-        user_len + user + load_public_key_bytes(f"{username}/public"),
+        server, private_key, server_public_key, ca_public_key, username, certificate
     )
 
     threading.Thread(target=_receive_thread, args=(client,)).start()
@@ -221,6 +220,7 @@ def _receive_thread(client: Client):
 
 
 def _receive_image(decrypted: bytes, username: str):
+    # TODO: Add signature
     caption_length, from_length, message = _split_header_message(decrypted)
     log(f"From is of length: {from_length}")
 
@@ -233,33 +233,3 @@ def _receive_image(decrypted: bytes, username: str):
     print(f"Image caption: {caption}")
     _save_image(image, username, sender.decode(), caption)
     return True
-
-
-def apply_certificate(
-    ca: socket.socket, public_key: PublicKey, username: bytes
-) -> Certificate | None:
-    len_username = len(username).to_bytes(FROM_LENGTH_BYTES)
-    ca.send(ca_server.CERT_APPLY_CODE + len_username + username + public_key.to_bytes())
-    response = chunk(ca)
-    if response is None:
-        print("Unable to apply for certificate. Connection with CA closed.")
-        return None
-    valid = bool.from_bytes(response[:1])
-    if not valid:
-        print("Username is already registered on the CA. Please try another one.")
-        return None
-    return Certificate.deserialize(response[1:])
-
-
-def request_certificate(ca: socket.socket, peer: bytes) -> Certificate | None:
-    ca.send(ca_server.CERT_REQUEST_CODE + peer)
-    response = chunk(ca)
-    if response is None:
-        print("Unable to apply for certificate. Connection with CA closed.")
-        return None
-    exists = bool.from_bytes(response[:1])
-    if not exists:
-        print("User has not registered with the CA.")
-        return None
-
-    return Certificate.deserialize(response[1:])
